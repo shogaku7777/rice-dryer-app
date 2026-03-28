@@ -11,6 +11,7 @@ const VARIETIES = ["コシヒカリ", "ひとめぼれ", "あきたこまち", "
 const SERVICE_TYPES = ["乾燥のみ", "籾摺りのみ", "乾燥＋籾摺り"];
 const DRYER_COUNT = 10;
 const BAG_TYPES = ["新袋", "一空"];
+const MASU_OPTIONS = ["未選択", "1番", "2番", "3番", "4番"];
 
 const defaultDryers = Array.from({ length: DRYER_COUNT }, (_, i) => ({
   id: i + 1, lotId: null, status: "空き", capacity: "",
@@ -56,48 +57,80 @@ export default function App() {
   useEffect(() => { saveData(STORAGE_KEYS.dryers, dryers); }, [dryers]);
   useEffect(() => { saveData(STORAGE_KEYS.hulling, hulling); }, [hulling]);
 
+  // 顧客登録（サービス種別なし）
   const addFarmer = () => {
     if (!form.name) return;
     setFarmers(prev => [...prev, {
       id: Date.now(), name: form.name, phone: form.phone || "",
       address: form.address || "", district: form.district || "",
-      service: form.service || "乾燥＋籾摺り",
       note: form.note || ""
     }]);
     setModal(null); setForm({});
   };
 
+  // 新規受付
   const addLot = () => {
     if (!form.farmerId) return;
-    setLots(prev => [...prev, {
-      id: Date.now(), farmerId: Number(form.farmerId), variety: form.variety || "コシヒカリ",
-      tanIn: form.tanIn || "",  // 反別（持込量）
-      bagsIn: Number(form.bagsIn) || 0,
+    const newLot = {
+      id: Date.now(), farmerId: Number(form.farmerId),
+      variety: form.variety || "コシヒカリ",
+      tanIn: form.tanIn || "",
       bagType: form.bagType || "新袋",
       moistureIn: form.moistureIn || "", moistureOut: "",
       receivedAt: form.receivedAt || new Date().toISOString().slice(0, 10),
+      service: form.service || "乾燥＋籾摺り",
+      masu: form.masu || "未選択",
       status: "受付",
-      dryerId: form.dryerId ? Number(form.dryerId) : null,  // 受付時に予約
+      dryerId: form.dryerId ? Number(form.dryerId) : null,
       dryStartAt: null, dryEndAt: null,
       hullingId: null, fee: Number(form.fee) || 0, paid: false, note: form.note || "",
-    }]);
-    // 受付時に乾燥機を予約する
+      // 日報関連
+      jaSupply: "", agriSupply: "", otherSupply: "",
+      iimaiCount: "", iimaiType: "新袋", momiKanso: "",
+    };
     if (form.dryerId) {
       setDryers(prev => prev.map(d => d.id === Number(form.dryerId) ? { ...d, status: "予約中" } : d));
     }
+    setLots(prev => [...prev, newLot]);
     setModal(null); setForm({});
   };
 
-  const assignDryer = (dryerId) => {
+  // ロット編集（全項目）
+  const editLot = () => {
     if (!selectedLot) return;
-    const now = new Date().toISOString().slice(0, 10);
-    setDryers(prev => prev.map(d => {
-      if (d.id === dryerId) return { ...d, lotId: selectedLot.id, status: "乾燥中" };
-      if (d.id === selectedLot.dryerId && d.status === "予約中") return { ...d, status: "乾燥中" };
-      return d;
-    }));
-    setLots(prev => prev.map(l => l.id === selectedLot.id ? { ...l, dryerId, dryStartAt: now, status: "乾燥中" } : l));
-    setSelectedLot(null); setModal(null);
+    const oldDryerId = selectedLot.dryerId;
+    const newDryerId = form.dryerId ? Number(form.dryerId) : null;
+
+    // 乾燥機変更があった場合
+    if (oldDryerId !== newDryerId) {
+      setDryers(prev => prev.map(d => {
+        if (d.id === oldDryerId && (d.status === "予約中")) return { ...d, status: "空き", lotId: null };
+        if (d.id === newDryerId && d.status === "空き") return { ...d, status: selectedLot.status === "乾燥中" ? "乾燥中" : "予約中" };
+        return d;
+      }));
+    }
+
+    setLots(prev => prev.map(l => l.id === selectedLot.id ? {
+      ...l,
+      farmerId: Number(form.farmerId) || l.farmerId,
+      variety: form.variety || l.variety,
+      tanIn: form.tanIn !== undefined ? form.tanIn : l.tanIn,
+      bagType: form.bagType || l.bagType,
+      moistureIn: form.moistureIn !== undefined ? form.moistureIn : l.moistureIn,
+      receivedAt: form.receivedAt || l.receivedAt,
+      service: form.service || l.service,
+      masu: form.masu || l.masu,
+      dryerId: newDryerId,
+      fee: form.fee !== undefined ? Number(form.fee) : l.fee,
+      note: form.note !== undefined ? form.note : l.note,
+      jaSupply: form.jaSupply !== undefined ? form.jaSupply : l.jaSupply,
+      agriSupply: form.agriSupply !== undefined ? form.agriSupply : l.agriSupply,
+      otherSupply: form.otherSupply !== undefined ? form.otherSupply : l.otherSupply,
+      iimaiCount: form.iimaiCount !== undefined ? form.iimaiCount : l.iimaiCount,
+      iimaiType: form.iimaiType || l.iimaiType,
+      momiKanso: form.momiKanso !== undefined ? form.momiKanso : l.momiKanso,
+    } : l));
+    setSelectedLot(null); setModal(null); setForm({});
   };
 
   const startDrying = (lotId) => {
@@ -106,6 +139,18 @@ export default function App() {
     const now = new Date().toISOString().slice(0, 10);
     setDryers(prev => prev.map(d => d.id === lot.dryerId ? { ...d, lotId, status: "乾燥中" } : d));
     setLots(prev => prev.map(l => l.id === lotId ? { ...l, dryStartAt: now, status: "乾燥中" } : l));
+  };
+
+  const assignDryer = (dryerId) => {
+    if (!selectedLot) return;
+    const now = new Date().toISOString().slice(0, 10);
+    // 古い予約を解除
+    if (selectedLot.dryerId) {
+      setDryers(prev => prev.map(d => d.id === selectedLot.dryerId && d.status === "予約中" ? { ...d, status: "空き", lotId: null } : d));
+    }
+    setDryers(prev => prev.map(d => d.id === dryerId ? { ...d, lotId: selectedLot.id, status: "乾燥中" } : d));
+    setLots(prev => prev.map(l => l.id === selectedLot.id ? { ...l, dryerId, dryStartAt: now, status: "乾燥中" } : l));
+    setSelectedLot(null); setModal(null);
   };
 
   const completeDrying = (lotId) => {
@@ -131,17 +176,21 @@ export default function App() {
 
   const completeHullingWithResult = () => {
     if (!selectedHulling) return;
+    const lot = lots.find(l => l.id === selectedHulling.lotId);
     const result = {
-      jaSupply: form.jaSupply || "", agriSupply: form.agriSupply || "",
-      otherSupply: form.otherSupply || "", iimaiCount: form.iimaiCount || "",
-      iimaiType: form.iimaiType || "新袋", momiKanso: form.momiKanso || "",
+      jaSupply: form.jaSupply || lot?.jaSupply || "",
+      agriSupply: form.agriSupply || lot?.agriSupply || "",
+      otherSupply: form.otherSupply || lot?.otherSupply || "",
+      iimaiCount: form.iimaiCount || lot?.iimaiCount || "",
+      iimaiType: form.iimaiType || lot?.iimaiType || "新袋",
+      momiKanso: form.momiKanso || lot?.momiKanso || "",
       kuzuMai: form.kuzuMai || "", zanMai: form.zanMai || "",
-      tanBetsu: form.tanBetsu || "", moisture: form.moisture || "",
+      tanBetsu: form.tanBetsu || lot?.tanIn || "",
+      moisture: form.moisture || lot?.moistureOut || "",
       resultNote: form.resultNote || "",
     };
     setHulling(prev => prev.map(h => h.id === selectedHulling.id ? { ...h, status: "完了", result } : h));
-    const h = hulling.find(h => h.id === selectedHulling.id);
-    if (h) setLots(prev => prev.map(l => l.id === h.lotId ? { ...l, status: "完了" } : l));
+    if (lot) setLots(prev => prev.map(l => l.id === lot.id ? { ...l, status: "完了" } : l));
     setSelectedHulling(null); setModal(null); setForm({});
   };
 
@@ -168,6 +217,22 @@ export default function App() {
   const completedHulling = hulling.filter(h => h.status === "完了");
 
   const googleMapsUrl = (address) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+
+  // 編集モーダルを開く
+  const openEditLot = (lot) => {
+    setSelectedLot(lot);
+    setForm({
+      farmerId: lot.farmerId, variety: lot.variety, tanIn: lot.tanIn,
+      bagType: lot.bagType, moistureIn: lot.moistureIn, receivedAt: lot.receivedAt,
+      service: lot.service, masu: lot.masu || "未選択",
+      dryerId: lot.dryerId || "",
+      fee: lot.fee, note: lot.note,
+      jaSupply: lot.jaSupply || "", agriSupply: lot.agriSupply || "",
+      otherSupply: lot.otherSupply || "", iimaiCount: lot.iimaiCount || "",
+      iimaiType: lot.iimaiType || "新袋", momiKanso: lot.momiKanso || "",
+    });
+    setModal("editLot");
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: "#0a0f1a", color: "#e8dcc8", fontFamily: "'Noto Serif JP', 'Hiragino Mincho ProN', serif" }}>
@@ -224,11 +289,9 @@ export default function App() {
               ))}
             </div>
 
-            {/* 乾燥機グリッド：予約中・乾燥中を一目で */}
             <h3 style={{ color: "#c8a040", fontSize: 15, marginBottom: 12 }}>🔢 乾燥機一覧</h3>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 24 }}>
               {dryers.map(d => {
-                // 予約中の場合は対応するロットを探す
                 const lot = d.lotId ? getLot(d.lotId) : d.status === "予約中" ? lots.find(l => l.dryerId === d.id) : null;
                 const farmer = lot ? getFarmer(lot.farmerId) : null;
                 const sc = statusColor[d.status] || "#94a3b8";
@@ -240,12 +303,12 @@ export default function App() {
                     <div style={{ fontSize: 12, color: sc, fontWeight: "bold", marginBottom: 4 }}>{d.status}</div>
                     {farmer && <div style={{ fontSize: 11, color: "#e8dcc8" }}>{farmer.name}</div>}
                     {lot && <div style={{ fontSize: 10, color: "#a08040" }}>{lot.variety} / {lot.tanIn}反</div>}
+                    {lot && lot.masu && lot.masu !== "未選択" && <div style={{ fontSize: 10, color: "#38bdf8" }}>{lot.masu}</div>}
                   </div>
                 );
               })}
             </div>
 
-            {/* 乾燥開始待ち（予約済みで受付状態） */}
             {reservedLots.length > 0 && (
               <div style={{ background: "#0c2a3a", border: "1px solid #38bdf8", borderRadius: 10, padding: 16, marginBottom: 16 }}>
                 <h3 style={{ color: "#38bdf8", fontSize: 14, marginBottom: 10 }}>🔵 乾燥機予約済み・開始待ち</h3>
@@ -257,6 +320,7 @@ export default function App() {
                       <div>
                         <span style={{ color: "#e8dcc8", fontSize: 13 }}>{farmer?.name}</span>
                         <span style={{ color: "#a08040", fontSize: 11, marginLeft: 8 }}>{lot.variety} / {lot.tanIn}反 → {dryer?.id}号機</span>
+                        {lot.masu && lot.masu !== "未選択" && <span style={{ color: "#38bdf8", fontSize: 11, marginLeft: 6 }}>{lot.masu}</span>}
                       </div>
                       <button onClick={() => startDrying(lot.id)} style={btnStyle("#f59e0b")}>乾燥開始</button>
                     </div>
@@ -276,7 +340,7 @@ export default function App() {
                         <span style={{ color: "#e8dcc8", fontSize: 13 }}>{farmer?.name}</span>
                         <span style={{ color: "#a08040", fontSize: 11, marginLeft: 8 }}>{lot.variety} / {lot.tanIn}反</span>
                       </div>
-                      <button onClick={() => { setSelectedLot(lot); setModal("assignDryer"); }} style={btnStyle("#f59e0b")}>乾燥機を割り当て</button>
+                      <button onClick={() => openEditLot(lot)} style={btnStyle("#f59e0b")}>割り当て・編集</button>
                     </div>
                   );
                 })}
@@ -294,7 +358,7 @@ export default function App() {
                         <span style={{ color: "#e8dcc8", fontSize: 13 }}>{farmer?.name}</span>
                         <span style={{ color: "#a08040", fontSize: 11, marginLeft: 8 }}>{lot.variety}</span>
                       </div>
-                      <button onClick={() => { setSelectedLot(lot); setModal("hullingSchedule"); }} style={btnStyle("#818cf8")}>日程を設定</button>
+                      <button onClick={() => { setSelectedLot(lot); setModal("hullingSchedule"); setForm({}); }} style={btnStyle("#818cf8")}>日程を設定</button>
                     </div>
                   );
                 })}
@@ -326,11 +390,12 @@ export default function App() {
                       <div>
                         <div style={{ marginBottom: 6 }}><Label>顧客</Label>{farmer.name}</div>
                         <div style={{ marginBottom: 6 }}><Label>品種</Label>{lot.variety}</div>
-                        <div style={{ marginBottom: 6 }}><Label>持込</Label>{lot.tanIn}反 / {lot.bagsIn}袋（{lot.bagType || "新袋"}）</div>
+                        <div style={{ marginBottom: 6 }}><Label>持込量</Label>{lot.tanIn}反</div>
+                        <div style={{ marginBottom: 6 }}><Label>マス</Label>{lot.masu || "未選択"}</div>
                         <div style={{ marginBottom: 6 }}><Label>水分(入)</Label>{lot.moistureIn || "—"}%</div>
                         <div style={{ marginBottom: 10 }}><Label>開始日</Label>{lot.dryStartAt || "—"}</div>
                         {d.status === "乾燥中" && (
-                          <button onClick={() => { setSelectedLot(lot); setModal("completeDrying"); }} style={btnStyle("#4ade80", true)}>乾燥完了にする</button>
+                          <button onClick={() => { setSelectedLot(lot); setModal("completeDrying"); setForm({}); }} style={btnStyle("#4ade80", true)}>乾燥完了にする</button>
                         )}
                         {d.status === "予約中" && (
                           <button onClick={() => startDrying(lot.id)} style={btnStyle("#f59e0b", true)}>乾燥開始</button>
@@ -368,28 +433,30 @@ export default function App() {
                       <span style={{ fontSize: 15, color: "#e8dcc8", fontWeight: "bold", marginRight: 8 }}>{farmer?.name}</span>
                       <span style={{ fontSize: 12, background: `${sc}20`, color: sc, padding: "2px 8px", borderRadius: 10, border: `1px solid ${sc}` }}>{lot.status}</span>
                     </div>
-                    <div style={{ fontSize: 11, color: "#6b7280" }}>{lot.receivedAt}</div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <span style={{ fontSize: 11, color: "#6b7280" }}>{lot.receivedAt}</span>
+                      <button onClick={() => openEditLot(lot)} style={btnStyle("#a0c080", false, true)}>✏️ 編集</button>
+                    </div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8, marginTop: 10 }}>
+
+                  {/* 受付画面：品種・持込量・水分・乾燥機・マス */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8, marginTop: 10 }}>
                     <Info label="品種" value={lot.variety} />
                     <Info label="持込量" value={`${lot.tanIn}反`} />
-                    <Info label="袋数" value={`${lot.bagsIn}袋（${lot.bagType || "新袋"}）`} />
                     <Info label="水分(入)" value={lot.moistureIn ? lot.moistureIn + "%" : "—"} />
-                    <Info label="水分(出)" value={lot.moistureOut ? lot.moistureOut + "%" : "—"} />
                     <Info label="乾燥機" value={dryer ? `${dryer.id}号機` : "未割当"} />
+                    <Info label="マス" value={lot.masu || "未選択"} />
                   </div>
+
                   <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {lot.status === "受付" && !lot.dryerId && (
-                      <button onClick={() => { setSelectedLot(lot); setModal("assignDryer"); }} style={btnStyle("#f59e0b")}>乾燥機を割り当て</button>
-                    )}
                     {lot.status === "受付" && lot.dryerId && (
                       <button onClick={() => startDrying(lot.id)} style={btnStyle("#38bdf8")}>乾燥開始</button>
                     )}
                     {lot.status === "乾燥中" && (
-                      <button onClick={() => { setSelectedLot(lot); setModal("completeDrying"); }} style={btnStyle("#4ade80")}>乾燥完了</button>
+                      <button onClick={() => { setSelectedLot(lot); setModal("completeDrying"); setForm({}); }} style={btnStyle("#4ade80")}>乾燥完了</button>
                     )}
                     {lot.status === "乾燥完了" && (
-                      <button onClick={() => { setSelectedLot(lot); setModal("hullingSchedule"); }} style={btnStyle("#818cf8")}>籾摺り日程を設定</button>
+                      <button onClick={() => { setSelectedLot(lot); setModal("hullingSchedule"); setForm({}); }} style={btnStyle("#818cf8")}>籾摺り日程を設定</button>
                     )}
                   </div>
                 </div>
@@ -416,12 +483,22 @@ export default function App() {
                     </div>
                     <div style={{ fontSize: 13, color: "#f0c060" }}>📅 {h.date}</div>
                   </div>
-                  {lot && <div style={{ fontSize: 12, color: "#a08040", marginTop: 6 }}>{lot.variety} / {lot.tanIn}反 / {lot.bagsIn}袋（{lot.bagType || "新袋"}）</div>}
+                  {lot && <div style={{ fontSize: 12, color: "#a08040", marginTop: 6 }}>{lot.variety} / {lot.tanIn}反 / マス:{lot.masu || "未選択"}</div>}
                   {h.note && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>備考: {h.note}</div>}
                   <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
                     {h.status === "予約済" && <button onClick={() => startHulling(h.id)} style={btnStyle("#f472b6")}>籾摺り開始</button>}
                     {h.status === "籾摺り中" && (
-                      <button onClick={() => { setSelectedHulling(h); setForm({}); setModal("completeHulling"); }} style={btnStyle("#34d399")}>実績を入力して完了</button>
+                      <button onClick={() => {
+                        const lot = getLot(h.lotId);
+                        setSelectedHulling(h);
+                        setForm({
+                          jaSupply: lot?.jaSupply || "", agriSupply: lot?.agriSupply || "",
+                          otherSupply: lot?.otherSupply || "", iimaiCount: lot?.iimaiCount || "",
+                          iimaiType: lot?.iimaiType || "新袋", momiKanso: lot?.momiKanso || "",
+                          tanBetsu: lot?.tanIn || "", moisture: lot?.moistureOut || "",
+                        });
+                        setModal("completeHulling");
+                      }} style={btnStyle("#34d399")}>実績を入力して完了</button>
                     )}
                   </div>
                 </div>
@@ -474,7 +551,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ===== CUSTOMERS（顧客管理） ===== */}
+        {/* ===== CUSTOMERS ===== */}
         {tab === "farmers" && (
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -501,9 +578,6 @@ export default function App() {
                           }}>🗺️ マップ</a>
                         </div>
                       )}
-                      <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 11, color: "#f59e0b", background: "#451a03", padding: "2px 8px", borderRadius: 8 }}>{f.service}</span>
-                      </div>
                     </div>
                     <div style={{ textAlign: "right", marginLeft: 12 }}>
                       <div style={{ fontSize: 12, color: "#6b7280" }}>今季受付: {farmerLots.length}件</div>
@@ -549,9 +623,9 @@ export default function App() {
                     <Info label="品種" value={lot.variety} small />
                     <Info label="受付日" value={lot.receivedAt} small />
                     <Info label="持込量" value={`${lot.tanIn}反`} small />
-                    <Info label="袋数" value={`${lot.bagsIn}袋（${lot.bagType || "新袋"}）`} small />
                     <Info label="水分(入)" value={lot.moistureIn ? lot.moistureIn + "%" : "—"} small />
                     <Info label="水分(出)" value={lot.moistureOut ? lot.moistureOut + "%" : "—"} small />
+                    <Info label="サービス" value={lot.service || "—"} small />
                   </div>
                 </div>
               );
@@ -562,8 +636,8 @@ export default function App() {
 
       {/* ===== MODALS ===== */}
       {modal && (
-        <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setModal(null)}>
-          <div style={{ background: "#111827", border: "1px solid #374151", borderRadius: 14, padding: 24, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+        <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => { setModal(null); setSelectedLot(null); setSelectedHulling(null); }}>
+          <div style={{ background: "#111827", border: "1px solid #374151", borderRadius: 14, padding: 24, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
 
             {/* 顧客登録 */}
             {modal === "addFarmer" && (
@@ -573,11 +647,6 @@ export default function App() {
                 <Field label="電話番号"><input style={inputStyle} value={form.phone || ""} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="090-0000-0000" /></Field>
                 <Field label="地区名"><input style={inputStyle} value={form.district || ""} onChange={e => setForm({ ...form, district: e.target.value })} placeholder="例: 大分市 / 竹田地区" /></Field>
                 <Field label="住所（Googleマップで表示できます）"><input style={inputStyle} value={form.address || ""} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="例: 大分県大分市○○町1-2-3" /></Field>
-                <Field label="サービス種別">
-                  <select style={inputStyle} value={form.service || "乾燥＋籾摺り"} onChange={e => setForm({ ...form, service: e.target.value })}>
-                    {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
-                  </select>
-                </Field>
                 <Field label="備考"><textarea style={{ ...inputStyle, height: 60 }} value={form.note || ""} onChange={e => setForm({ ...form, note: e.target.value })} /></Field>
                 <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
                   <button onClick={addFarmer} style={btnStyle("#f0c060", true)}>登録する</button>
@@ -596,32 +665,42 @@ export default function App() {
                     {farmers.map(f => <option key={f.id} value={f.id}>{f.name}{f.district ? `（${f.district}）` : ""}</option>)}
                   </select>
                 </Field>
-                <Field label="品種">
-                  <select style={inputStyle} value={form.variety || "コシヒカリ"} onChange={e => setForm({ ...form, variety: e.target.value })}>
-                    {VARIETIES.map(v => <option key={v}>{v}</option>)}
+                <Field label="サービス種別">
+                  <select style={inputStyle} value={form.service || "乾燥＋籾摺り"} onChange={e => setForm({ ...form, service: e.target.value })}>
+                    {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
                   </select>
                 </Field>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <Field label="持込量（反）"><input style={inputStyle} type="number" step="0.1" value={form.tanIn || ""} onChange={e => setForm({ ...form, tanIn: e.target.value })} placeholder="例: 3.5" /></Field>
-                  <Field label="水分値(入) (%)"><input style={inputStyle} type="number" step="0.1" value={form.moistureIn || ""} onChange={e => setForm({ ...form, moistureIn: e.target.value })} /></Field>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <Field label="袋数"><input style={inputStyle} type="number" value={form.bagsIn || ""} onChange={e => setForm({ ...form, bagsIn: e.target.value })} /></Field>
+                  <Field label="品種">
+                    <select style={inputStyle} value={form.variety || "コシヒカリ"} onChange={e => setForm({ ...form, variety: e.target.value })}>
+                      {VARIETIES.map(v => <option key={v}>{v}</option>)}
+                    </select>
+                  </Field>
                   <Field label="袋種別">
                     <select style={inputStyle} value={form.bagType || "新袋"} onChange={e => setForm({ ...form, bagType: e.target.value })}>
                       {BAG_TYPES.map(b => <option key={b}>{b}</option>)}
                     </select>
                   </Field>
                 </div>
-                {/* 受付時に乾燥機を予約 */}
-                <Field label="乾燥機を予約（任意）">
-                  <select style={inputStyle} value={form.dryerId || ""} onChange={e => setForm({ ...form, dryerId: e.target.value })}>
-                    <option value="">-- 後で割り当て --</option>
-                    {dryers.filter(d => d.status === "空き").map(d => (
-                      <option key={d.id} value={d.id}>{d.id}号機（空き）{d.capacity ? ` / ${d.capacity}石` : ""}</option>
-                    ))}
-                  </select>
-                </Field>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <Field label="持込量（反）"><input style={inputStyle} type="number" step="0.1" value={form.tanIn || ""} onChange={e => setForm({ ...form, tanIn: e.target.value })} placeholder="例: 3.5" /></Field>
+                  <Field label="水分値(入) (%)"><input style={inputStyle} type="number" step="0.1" value={form.moistureIn || ""} onChange={e => setForm({ ...form, moistureIn: e.target.value })} /></Field>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <Field label="乾燥機を予約（任意）">
+                    <select style={inputStyle} value={form.dryerId || ""} onChange={e => setForm({ ...form, dryerId: e.target.value })}>
+                      <option value="">-- 後で割り当て --</option>
+                      {dryers.filter(d => d.status === "空き").map(d => (
+                        <option key={d.id} value={d.id}>{d.id}号機{d.capacity ? `（${d.capacity}石）` : ""}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="マス">
+                    <select style={inputStyle} value={form.masu || "未選択"} onChange={e => setForm({ ...form, masu: e.target.value })}>
+                      {MASU_OPTIONS.map(m => <option key={m}>{m}</option>)}
+                    </select>
+                  </Field>
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   <Field label="受付日"><input style={inputStyle} type="date" value={form.receivedAt || new Date().toISOString().slice(0, 10)} onChange={e => setForm({ ...form, receivedAt: e.target.value })} /></Field>
                   <Field label="料金 (円)"><input style={inputStyle} type="number" value={form.fee || ""} onChange={e => setForm({ ...form, fee: e.target.value })} /></Field>
@@ -634,32 +713,77 @@ export default function App() {
               </div>
             )}
 
-            {/* 乾燥機割り当て */}
-            {modal === "assignDryer" && selectedLot && (
+            {/* ロット編集（全項目） */}
+            {modal === "editLot" && selectedLot && (
               <div>
-                <ModalTitle>🔢 乾燥機を割り当て</ModalTitle>
-                <div style={{ background: "#1e293b", borderRadius: 8, padding: 12, marginBottom: 16 }}>
-                  <div style={{ color: "#e8dcc8", fontSize: 14 }}>{getFarmer(selectedLot.farmerId)?.name} — {selectedLot.variety}</div>
-                  <div style={{ color: "#a08040", fontSize: 12, marginTop: 4 }}>{selectedLot.tanIn}反 / {selectedLot.bagsIn}袋（{selectedLot.bagType}）</div>
+                <ModalTitle>✏️ 受付情報を編集</ModalTitle>
+                <Field label="顧客">
+                  <select style={inputStyle} value={form.farmerId || ""} onChange={e => setForm({ ...form, farmerId: e.target.value })}>
+                    {farmers.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="サービス種別">
+                  <select style={inputStyle} value={form.service || "乾燥＋籾摺り"} onChange={e => setForm({ ...form, service: e.target.value })}>
+                    {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </Field>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <Field label="品種">
+                    <select style={inputStyle} value={form.variety || ""} onChange={e => setForm({ ...form, variety: e.target.value })}>
+                      {VARIETIES.map(v => <option key={v}>{v}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="袋種別">
+                    <select style={inputStyle} value={form.bagType || "新袋"} onChange={e => setForm({ ...form, bagType: e.target.value })}>
+                      {BAG_TYPES.map(b => <option key={b}>{b}</option>)}
+                    </select>
+                  </Field>
                 </div>
-                <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 10 }}>空いている乾燥機を選んでください：</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
-                  {dryers.map(d => (
-                    <button key={d.id} onClick={() => d.status === "空き" && assignDryer(d.id)} style={{
-                      padding: "12px 4px", borderRadius: 8,
-                      border: d.status === "空き" ? "1px solid #4ade80" : "1px solid #374151",
-                      background: d.status === "空き" ? "#052e16" : "#1e293b",
-                      color: d.status === "空き" ? "#4ade80" : "#4b5563",
-                      cursor: d.status === "空き" ? "pointer" : "not-allowed",
-                      fontSize: 11, fontFamily: "inherit",
-                    }}>
-                      <div>{d.id}号</div>
-                      <div style={{ fontSize: 9, marginTop: 2 }}>{d.status}</div>
-                      {d.capacity && <div style={{ fontSize: 9, color: "#60a5fa" }}>{d.capacity}石</div>}
-                    </button>
-                  ))}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <Field label="持込量（反）"><input style={inputStyle} type="number" step="0.1" value={form.tanIn || ""} onChange={e => setForm({ ...form, tanIn: e.target.value })} /></Field>
+                  <Field label="水分値(入) (%)"><input style={inputStyle} type="number" step="0.1" value={form.moistureIn || ""} onChange={e => setForm({ ...form, moistureIn: e.target.value })} /></Field>
                 </div>
-                <button onClick={() => setModal(null)} style={{ ...btnStyle("#374151", true), marginTop: 16 }}>キャンセル</button>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <Field label="乾燥機">
+                    <select style={inputStyle} value={form.dryerId || ""} onChange={e => setForm({ ...form, dryerId: e.target.value })}>
+                      <option value="">-- 未割当 --</option>
+                      {dryers.filter(d => d.status === "空き" || d.id === selectedLot.dryerId).map(d => (
+                        <option key={d.id} value={d.id}>{d.id}号機（{d.id === selectedLot.dryerId ? "現在" : "空き"}）{d.capacity ? ` ${d.capacity}石` : ""}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="マス">
+                    <select style={inputStyle} value={form.masu || "未選択"} onChange={e => setForm({ ...form, masu: e.target.value })}>
+                      {MASU_OPTIONS.map(m => <option key={m}>{m}</option>)}
+                    </select>
+                  </Field>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <Field label="受付日"><input style={inputStyle} type="date" value={form.receivedAt || ""} onChange={e => setForm({ ...form, receivedAt: e.target.value })} /></Field>
+                  <Field label="料金 (円)"><input style={inputStyle} type="number" value={form.fee || ""} onChange={e => setForm({ ...form, fee: e.target.value })} /></Field>
+                </div>
+                <div style={{ borderTop: "1px solid #374151", paddingTop: 12, marginTop: 4 }}>
+                  <div style={{ fontSize: 11, color: "#a0c080", marginBottom: 8 }}>📋 日報関連情報</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                    <Field label="JA供出"><input style={inputStyle} type="number" value={form.jaSupply || ""} onChange={e => setForm({ ...form, jaSupply: e.target.value })} placeholder="0" /></Field>
+                    <Field label="アグリ供出"><input style={inputStyle} type="number" value={form.agriSupply || ""} onChange={e => setForm({ ...form, agriSupply: e.target.value })} placeholder="0" /></Field>
+                    <Field label="他供出"><input style={inputStyle} type="number" value={form.otherSupply || ""} onChange={e => setForm({ ...form, otherSupply: e.target.value })} placeholder="0" /></Field>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <Field label="飯米（袋数）"><input style={inputStyle} type="number" value={form.iimaiCount || ""} onChange={e => setForm({ ...form, iimaiCount: e.target.value })} /></Field>
+                    <Field label="飯米袋種別">
+                      <select style={inputStyle} value={form.iimaiType || "新袋"} onChange={e => setForm({ ...form, iimaiType: e.target.value })}>
+                        {BAG_TYPES.map(b => <option key={b}>{b}</option>)}
+                      </select>
+                    </Field>
+                  </div>
+                  <Field label="籾乾燥（例: 30×15）"><input style={inputStyle} value={form.momiKanso || ""} onChange={e => setForm({ ...form, momiKanso: e.target.value })} placeholder="30×15" /></Field>
+                </div>
+                <Field label="備考"><textarea style={{ ...inputStyle, height: 50 }} value={form.note || ""} onChange={e => setForm({ ...form, note: e.target.value })} /></Field>
+                <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+                  <button onClick={editLot} style={btnStyle("#a0c080", true)}>保存する</button>
+                  <button onClick={() => { setModal(null); setSelectedLot(null); }} style={btnStyle("#374151", true)}>キャンセル</button>
+                </div>
               </div>
             )}
 
@@ -673,7 +797,7 @@ export default function App() {
                 <Field label="水分値(出) (%)"><input style={inputStyle} type="number" step="0.1" value={form.moistureOut || ""} onChange={e => setForm({ ...form, moistureOut: e.target.value })} placeholder="例: 14.5" /></Field>
                 <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
                   <button onClick={() => completeDrying(selectedLot.id)} style={btnStyle("#4ade80", true)}>完了にする</button>
-                  <button onClick={() => setModal(null)} style={btnStyle("#374151", true)}>キャンセル</button>
+                  <button onClick={() => { setModal(null); setSelectedLot(null); }} style={btnStyle("#374151", true)}>キャンセル</button>
                 </div>
               </div>
             )}
@@ -689,7 +813,7 @@ export default function App() {
                 <Field label="備考"><textarea style={{ ...inputStyle, height: 50 }} value={form.note || ""} onChange={e => setForm({ ...form, note: e.target.value })} /></Field>
                 <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
                   <button onClick={scheduleHulling} style={btnStyle("#818cf8", true)}>日程を確定</button>
-                  <button onClick={() => setModal(null)} style={btnStyle("#374151", true)}>キャンセル</button>
+                  <button onClick={() => { setModal(null); setSelectedLot(null); }} style={btnStyle("#374151", true)}>キャンセル</button>
                 </div>
               </div>
             )}
@@ -718,7 +842,7 @@ export default function App() {
                   return (
                     <div style={{ background: "#1e293b", borderRadius: 8, padding: 12, marginBottom: 16 }}>
                       <div style={{ color: "#e8dcc8", fontSize: 14, fontWeight: "bold" }}>{farmer?.name}</div>
-                      <div style={{ color: "#a08040", fontSize: 12, marginTop: 4 }}>{lot?.variety} / {lot?.tanIn}反 / {lot?.bagsIn}袋（{lot?.bagType}）</div>
+                      <div style={{ color: "#a08040", fontSize: 12, marginTop: 4 }}>{lot?.variety} / {lot?.tanIn}反 / マス:{lot?.masu || "未選択"}</div>
                     </div>
                   );
                 })()}
@@ -745,7 +869,7 @@ export default function App() {
                 <Field label="その他備考"><textarea style={{ ...inputStyle, height: 50 }} value={form.resultNote || ""} onChange={e => setForm({ ...form, resultNote: e.target.value })} /></Field>
                 <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
                   <button onClick={completeHullingWithResult} style={btnStyle("#34d399", true)}>完了・日報に記録</button>
-                  <button onClick={() => setModal(null)} style={btnStyle("#374151", true)}>キャンセル</button>
+                  <button onClick={() => { setModal(null); setSelectedHulling(null); }} style={btnStyle("#374151", true)}>キャンセル</button>
                 </div>
               </div>
             )}
