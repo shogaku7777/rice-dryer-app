@@ -423,7 +423,7 @@ export default function App() {
                   <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
                     <thead>
                       <tr style={{ background: C.primary }}>
-                        {["日付","氏名","JA供出","アグリ供出","他供出","飯米","籾乾燥","くず米","残米","反別","水分","その他",""].map((h, i) => (
+                        {["日付","氏名","JA供出","アグリ供出","他供出","飯米","籾乾燥","くず米","残米","反別","水分","その他","操作"].map((h, i) => (
                           <th key={i} style={{ padding: "12px 10px", color: "#ffffff", textAlign: "center", whiteSpace: "nowrap", fontWeight: "700", fontSize: 14 }}>{h}</th>
                         ))}
                       </tr>
@@ -448,7 +448,25 @@ export default function App() {
                             <td style={TD}>{r.moisture || lot?.moistureOut || "—"}</td>
                             <td style={{ ...TD, color: C.textSub }}>{r.resultNote || "—"}</td>
                             <td style={TD}>
-                              <button onClick={() => { setSelectedHulling(h); setForm({ ...r }); setModal("editHulling"); }} style={smallBtn(C.gold)}>✏️ 訂正</button>
+                              <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                                <button onClick={() => { setSelectedHulling(h); setForm({ ...r }); setModal("editHulling"); }} style={smallBtn(C.gold)}>✏️ 訂正</button>
+                                <button onClick={() => {
+                                  const name = farmer?.name || "";
+                                  const variety = lot?.variety || "";
+                                  const tan = r.tanBetsu || lot?.tanIn || "";
+                                  const date = h.date || "";
+                                  const moisture = r.moisture || lot?.moistureOut || "";
+                                  const fee = lot?.fee ? `¥${Number(lot.fee).toLocaleString()}` : "未設定";
+                                  const supplies = [
+                                    r.jaSupply ? `JA供出: ${r.jaSupply}袋` : "",
+                                    r.agriSupply ? `アグリ供出: ${r.agriSupply}袋` : "",
+                                    r.otherSupply ? `他供出: ${r.otherSupply}袋` : "",
+                                    r.iimaiCount ? `飯米: ${r.iimaiType === "一空" ? "一空" : "新"}${r.iimaiCount}袋` : "",
+                                  ].filter(Boolean).join("\n");
+                                  const msg = `【籾摺り完了のお知らせ】\n${name} 様\n\n籾摺り作業が完了しましたのでお知らせします。\n\n品種: ${variety}\n反別: ${tan}反\n完了日: ${date}\n水分値: ${moisture}%\n\n${supplies}\n\n精算金額: ${fee}\n\nよろしくお願いいたします。`;
+                                  navigator.clipboard.writeText(msg).then(() => alert("LINEメッセージをコピーしました！")).catch(() => alert("コピーに失敗しました"));
+                                }} style={smallBtn(C.green)}>📋 LINEコピー</button>
+                              </div>
                             </td>
                           </tr>
                         );
