@@ -231,7 +231,7 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 32 }}>🌾</span>
           <div>
-            <div style={{ fontSize: 20, fontWeight: "bold", color: "#f0c060", letterSpacing: 2 }}>籾乾燥管理システム</div>
+            <div style={{ fontSize: 20, fontWeight: "bold", color: "#f0c060", letterSpacing: 2 }}>正覚ライスセンター管理システム</div>
             <div style={{ fontSize: 11, color: "#a08040", letterSpacing: 1 }}>乾燥機10台・籾摺り実績日報</div>
           </div>
         </div>
