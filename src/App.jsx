@@ -545,7 +545,7 @@ export default function App() {
               const ss = STATUS[lot.status] || { color: C.textSub, bg: C.surfaceAlt, border: C.border };
               const hullRec = hulling.find(h => h.lotId === lot.id && h.result);
               const r = hullRec?.result || lot.directFee || {};
-              const totalFee = [r.feeHulling, r.feeDrying, r.feeBag, r.feeKuzu].reduce((s, v) => s + (Number(v) || 0), 0);
+              const totalFee = (Number(r.feeHulling) || 0) + (Number(r.feeDrying) || 0) + (Number(r.feeBag) || 0) - (Number(r.feeKuzu) || 0);
               return (
                 <div key={lot.id} style={{ background: C.surface, border: `2px solid ${C.border}`, borderRadius: 14, padding: 20, marginBottom: 14 }}>
                   {/* ヘッダー行 */}
@@ -619,21 +619,22 @@ export default function App() {
                       <div style={{ fontSize: 13, color: C.textMuted, fontWeight: "700", marginBottom: 8 }}>金額内訳</div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
                         {[
-                          ["籾摺り賃", r.feeHulling ? `¥${Number(r.feeHulling).toLocaleString()}` : null],
-                          ["籾乾燥賃", r.feeDrying ? `¥${Number(r.feeDrying).toLocaleString()}` : null],
-                          ["米袋代", r.feeBag ? `¥${Number(r.feeBag).toLocaleString()}` : null],
-                          ["くず米代", r.feeKuzu ? `¥${Number(r.feeKuzu).toLocaleString()}` : null],
-                          ["その他", r.feeOther || null],
-                        ].filter(([, v]) => v).map(([l, v]) => (
-                          <div key={l} style={{ background: C.greenLight, borderRadius: 8, padding: "8px 10px", border: `1px solid ${C.greenBorder}` }}>
+                          ["籾摺り賃", r.feeHulling ? `¥${Number(r.feeHulling).toLocaleString()}` : null, false],
+                          ["籾乾燥賃", r.feeDrying ? `¥${Number(r.feeDrying).toLocaleString()}` : null, false],
+                          ["米袋代", r.feeBag ? `¥${Number(r.feeBag).toLocaleString()}` : null, false],
+                          ["くず米代（返金）", r.feeKuzu ? `－¥${Number(r.feeKuzu).toLocaleString()}` : null, true],
+                          ["その他", r.feeOther || null, false],
+                        ].filter(([, v]) => v).map(([l, v, isRefund]) => (
+                          <div key={l} style={{ background: isRefund ? C.redLight : C.greenLight, borderRadius: 8, padding: "8px 10px", border: `1px solid ${isRefund ? C.redBorder : C.greenBorder}` }}>
                             <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 2 }}>{l}</div>
-                            <div style={{ fontSize: 15, color: C.green, fontWeight: "700" }}>{v}</div>
+                            <div style={{ fontSize: 15, color: isRefund ? C.red : C.green, fontWeight: "700" }}>{v}</div>
                           </div>
                         ))}
-                        {totalFee > 0 && (
+                        {(r.feeHulling || r.feeDrying || r.feeBag) && (
                           <div style={{ background: C.green, borderRadius: 8, padding: "8px 10px" }}>
-                            <div style={{ fontSize: 12, color: "#86efac", marginBottom: 2 }}>合計</div>
+                            <div style={{ fontSize: 12, color: "#86efac", marginBottom: 2 }}>請求合計</div>
                             <div style={{ fontSize: 16, color: "#ffffff", fontWeight: "800" }}>¥{totalFee.toLocaleString()}</div>
+                            {r.feeKuzu && <div style={{ fontSize: 11, color: "#86efac", marginTop: 2 }}>（くず米代控除済）</div>}
                           </div>
                         )}
                       </div>
@@ -692,10 +693,7 @@ export default function App() {
                   <MF label="袋種別"><select style={INP} value={form.bagType || "新袋"} onChange={e => setForm({...form, bagType: e.target.value})}>{BAG_TYPES.map(b => <option key={b}>{b}</option>)}</select></MF>
                 </div>
                 <MF label="乾燥機を予約（任意）"><select style={INP} value={form.dryerId || ""} onChange={e => setForm({...form, dryerId: e.target.value})}><option value="">-- 後で割り当て --</option>{dryers.filter(d => d.status === "空き").map(d => <option key={d.id} value={d.id}>{dryerLabel(d.id)}（空き）{d.capacity ? ` / ${d.capacity}石` : ""}</option>)}</select></MF>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <MF label="受付日"><input style={INP} type="date" value={form.receivedAt || new Date().toISOString().slice(0,10)} onChange={e => setForm({...form, receivedAt: e.target.value})} /></MF>
-                  <MF label="料金 (円)"><input style={INP} type="number" value={form.fee || ""} onChange={e => setForm({...form, fee: e.target.value})} /></MF>
-                </div>
+                <MF label="受付日"><input style={INP} type="date" value={form.receivedAt || new Date().toISOString().slice(0,10)} onChange={e => setForm({...form, receivedAt: e.target.value})} /></MF>
                 <MF label="備考"><textarea style={{...INP, height: 60}} value={form.note || ""} onChange={e => setForm({...form, note: e.target.value})} /></MF>
                 <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
                   <Btn color={C.orange} full onClick={addLot}>受付する</Btn>
@@ -810,11 +808,11 @@ export default function App() {
                   </div>
                   <MF label="その他 (内容・金額など自由入力)"><input style={INP} value={form.feeOther || ""} onChange={e => setForm({...form, feeOther: e.target.value})} placeholder="例: 運搬費 ¥1,000" /></MF>
                   {/* 合計表示 */}
-                  {[form.feeHulling, form.feeDrying, form.feeBag, form.feeKuzu].some(v => v) && (
+                  {[form.feeHulling, form.feeDrying, form.feeBag].some(v => v) && (
                     <div style={{ background: C.greenLight, border: `1px solid ${C.greenBorder}`, borderRadius: 8, padding: "10px 14px", textAlign: "right" }}>
-                      <span style={{ fontSize: 15, color: C.textSub }}>合計: </span>
+                      <span style={{ fontSize: 15, color: C.textSub }}>請求合計（くず米代控除済）: </span>
                       <span style={{ fontSize: 18, fontWeight: "800", color: C.green }}>
-                        ¥{[form.feeHulling, form.feeDrying, form.feeBag, form.feeKuzu].reduce((s, v) => s + (Number(v) || 0), 0).toLocaleString()}
+                        ¥{((Number(form.feeHulling) || 0) + (Number(form.feeDrying) || 0) + (Number(form.feeBag) || 0) - (Number(form.feeKuzu) || 0)).toLocaleString()}
                       </span>
                     </div>
                   )}
@@ -846,11 +844,11 @@ export default function App() {
                   <MF label="くず米代 (円)"><input style={INP} type="number" value={form.feeKuzu || ""} onChange={e => setForm({...form, feeKuzu: e.target.value})} placeholder="0" /></MF>
                 </div>
                 <MF label="その他 (内容・金額など自由入力)"><input style={INP} value={form.feeOther || ""} onChange={e => setForm({...form, feeOther: e.target.value})} placeholder="例: 運搬費 ¥1,000" /></MF>
-                {[form.feeHulling, form.feeDrying, form.feeBag, form.feeKuzu].some(v => v) && (
+                {[form.feeHulling, form.feeDrying, form.feeBag].some(v => v) && (
                   <div style={{ background: C.greenLight, border: `1px solid ${C.greenBorder}`, borderRadius: 8, padding: "12px 16px", textAlign: "right", marginBottom: 8 }}>
-                    <span style={{ fontSize: 15, color: C.textSub }}>合計: </span>
+                    <span style={{ fontSize: 15, color: C.textSub }}>請求合計（くず米代控除済）: </span>
                     <span style={{ fontSize: 20, fontWeight: "800", color: C.green }}>
-                      ¥{[form.feeHulling, form.feeDrying, form.feeBag, form.feeKuzu].reduce((s, v) => s + (Number(v) || 0), 0).toLocaleString()}
+                      ¥{((Number(form.feeHulling) || 0) + (Number(form.feeDrying) || 0) + (Number(form.feeBag) || 0) - (Number(form.feeKuzu) || 0)).toLocaleString()}
                     </span>
                   </div>
                 )}
