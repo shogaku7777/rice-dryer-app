@@ -194,6 +194,34 @@ export default function App() {
 
   const googleMapsUrl = (address) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 
+  const buildLineMessage = (farmer, lot, r) => {
+    const lines = [];
+    lines.push(`${farmer?.name || ""}　様`);
+    lines.push("");
+    lines.push("籾摺りが完了しました🌾");
+    lines.push("");
+    lines.push("【作業内容】");
+    if (lot?.variety) lines.push(`品種：${lot.variety}`);
+    if (lot?.tanIn) lines.push(`持込量：${lot.tanIn}反`);
+    if (r?.jaSupply) lines.push(`JA供出：${r.jaSupply}袋`);
+    if (r?.agriSupply) lines.push(`アグリ供出：${r.agriSupply}袋`);
+    if (r?.otherSupply) lines.push(`他供出：${r.otherSupply}袋`);
+    if (r?.iimaiCount) lines.push(`飯米：${r.iimaiType === "一空" ? "一空" : "新"}${r.iimaiCount}袋`);
+    if (r?.momiKanso) lines.push(`籾乾燥：${r.momiKanso}`);
+    if (r?.kuzuMai) lines.push(`くず米：${r.kuzuMai}`);
+    if (r?.zanMai) lines.push(`残米：${r.zanMai}`);
+    if (r?.moisture) lines.push(`水分：${r.moisture}%`);
+    if (r?.resultNote) lines.push(`備考：${r.resultNote}`);
+    if (lot?.fee > 0) {
+      lines.push("");
+      lines.push("【精算金額】");
+      lines.push(`¥${Number(lot.fee).toLocaleString()}`);
+    }
+    lines.push("");
+    lines.push("ご確認よろしくお願いします。");
+    return lines.join("\n");
+  };
+
   // 乾燥機ラベル（「乾燥機1」形式）
   const dryerLabel = (id) => `乾燥機${id}`;
 
@@ -490,11 +518,17 @@ export default function App() {
                           <td style={tdStyle}>{r.moisture || lot?.moistureOut || "—"}</td>
                           <td style={{ ...tdStyle, color: "#a08040" }}>{r.resultNote || "—"}</td>
                           <td style={tdStyle}>
-                            <button onClick={() => {
-                              setSelectedHulling(h);
-                              setForm({ ...r });
-                              setModal("editHulling");
-                            }} style={btnStyle("#f0c060", false, true)}>✏️ 訂正</button>
+                            <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+                              <button onClick={() => {
+                                setSelectedHulling(h);
+                                setForm({ ...r });
+                                setModal("editHulling");
+                              }} style={btnStyle("#f0c060", false, true)}>✏️ 訂正</button>
+                              <button onClick={() => {
+                                const msg = buildLineMessage(farmer, lot, r);
+                                navigator.clipboard.writeText(msg).then(() => alert("📋 コピーしました！\nLINEに貼り付けて送信してください。"));
+                              }} style={btnStyle("#06b6d4", false, true)}>📋 LINE</button>
+                            </div>
                           </td>
                         </tr>
                       );
