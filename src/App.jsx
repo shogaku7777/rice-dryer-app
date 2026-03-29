@@ -9,8 +9,21 @@ const STORAGE_KEYS = {
 
 const VARIETIES = ["ヒノヒカリ", "おてんとそだち", "もち米", "その他"];
 const SERVICE_TYPES = ["乾燥のみ", "籾摺りのみ", "乾燥＋籾摺り"];
-const DRYER_COUNT = 10;
+const DRYER_COUNT = 9;
 const BAG_TYPES = ["新袋", "一空"];
+
+// 乾燥機マスタ（名前・容量固定）
+const DRYER_MASTER = [
+  { id: 1, name: "乾燥機1B", capacity: "2.5" },
+  { id: 2, name: "乾燥機2A", capacity: "3.5" },
+  { id: 3, name: "乾燥機2B", capacity: "3" },
+  { id: 4, name: "乾燥機3A", capacity: "3.5" },
+  { id: 5, name: "乾燥機3B", capacity: "3" },
+  { id: 6, name: "乾燥機4",  capacity: "3" },
+  { id: 7, name: "乾燥機5",  capacity: "4.5" },
+  { id: 8, name: "乾燥機6",  capacity: "5.5" },
+  { id: 9, name: "乾燥機7",  capacity: "" },
+];
 
 // ===== カラーパレット：見やすさ最優先 =====
 const C = {
@@ -60,8 +73,8 @@ const STATUS = {
   "予約済":     { color: C.gold,   bg: C.goldLight,    border: C.goldBorder },
 };
 
-const defaultDryers = Array.from({ length: DRYER_COUNT }, (_, i) => ({
-  id: i + 1, lotId: null, status: "空き", capacity: "",
+const defaultDryers = DRYER_MASTER.map(m => ({
+  id: m.id, name: m.name, lotId: null, status: "空き", capacity: m.capacity,
 }));
 
 function loadData(key, fallback) {
@@ -72,8 +85,32 @@ function saveData(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
-const dryerLabel = (id) => `乾燥機${id}`;
+const dryerLabel = (id, dryersList) => {
+  if (dryersList) { const d = dryersList.find(d => d.id === id); if (d?.name) return d.name; }
+  const m = DRYER_MASTER.find(m => m.id === id);
+  return m ? m.name : `乾燥機${id}`;
+};
 const googleMapsUrl = (addr) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
+
+// 時刻フォーマット
+const fmtDateTime = (iso) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+};
+
+// 残り時間計算（終了予定時刻から）
+const calcRemaining = (endIso) => {
+  if (!endIso) return null;
+  const end = new Date(endIso);
+  if (isNaN(end)) return null;
+  const diff = end - new Date();
+  if (diff <= 0) return "終了予定時刻を過ぎています";
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  return h > 0 ? `残り約 ${h}時間${m}分` : `残り約 ${m}分`;
+};
 
 export default function App() {
   const [tab, setTab] = useState("dashboard");
@@ -120,7 +157,7 @@ export default function App() {
   const startDrying = (lotId) => {
     const lot = lots.find(l => l.id === lotId);
     if (!lot || !lot.dryerId) return;
-    const now = new Date().toISOString().slice(0, 10);
+    const now = new Date().toISOString();
     setDryers(prev => prev.map(d => d.id === lot.dryerId ? { ...d, lotId, status: "乾燥中" } : d));
     setLots(prev => prev.map(l => l.id === lotId ? { ...l, dryStartAt: now, status: "乾燥中" } : l));
   };
@@ -243,11 +280,16 @@ export default function App() {
                 const ss = STATUS[d.status] || { color: C.textSub, bg: C.surfaceAlt, border: C.border };
                 return (
                   <div key={d.id} style={{ background: ss.bg, border: `2px solid ${ss.border}`, borderRadius: 10, padding: "12px 8px", textAlign: "center" }}>
-                    <div style={{ fontSize: 13, color: C.textSub, fontWeight: "700", marginBottom: 4 }}>{dryerLabel(d.id)}</div>
+                    <div style={{ fontSize: 13, color: C.textSub, fontWeight: "700", marginBottom: 4 }}>{dryerLabel(d.id, dryers)}</div>
                     {d.capacity && <div style={{ fontSize: 12, color: C.green, fontWeight: "600", marginBottom: 4 }}>{d.capacity}石</div>}
                     <div style={{ fontSize: 13, color: ss.color, fontWeight: "800", marginBottom: 6, background: C.surface, padding: "2px 6px", borderRadius: 6, display: "inline-block", border: `1px solid ${ss.border}` }}>{d.status}</div>
                     {farmer && <div style={{ fontSize: 14, color: C.text, fontWeight: "700", marginTop: 4 }}>{farmer.name}</div>}
                     {lot && <div style={{ fontSize: 12, color: C.textSub, marginTop: 2 }}>{lot.variety}</div>}
+                    {d.status === "乾燥中" && lot?.dryEndScheduled && (
+                      <div style={{ fontSize: 11, color: new Date(lot.dryEndScheduled) < new Date() ? C.red : C.orange, fontWeight: "700", marginTop: 4 }}>
+                        {calcRemaining(lot.dryEndScheduled)}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -261,7 +303,7 @@ export default function App() {
                     <AlertRow key={lot.id}>
                       <span style={{ fontSize: 16, fontWeight: "700" }}>{farmer?.name}</span>
                       <span style={{ fontSize: 14, color: C.textSub, marginLeft: 8 }}>{lot.variety} / {lot.tanIn}反 → {dryerLabel(getDryer(lot.dryerId)?.id)}</span>
-                      <Btn color={C.orange} onClick={() => startDrying(lot.id)}>乾燥開始</Btn>
+                      <Btn color={C.orange} onClick={() => { setSelectedLot(lot); setForm({ dryEndScheduled: "" }); setModal("startDrying"); }}>乾燥開始</Btn>
                     </AlertRow>
                   );
                 })}
@@ -307,15 +349,16 @@ export default function App() {
                 const lot = d.lotId ? getLot(d.lotId) : d.status === "予約中" ? lots.find(l => l.dryerId === d.id) : null;
                 const farmer = lot ? getFarmer(lot.farmerId) : null;
                 const ss = STATUS[d.status] || { color: C.textSub, bg: C.surfaceAlt, border: C.border };
+                const remaining = lot?.dryEndScheduled ? calcRemaining(lot.dryEndScheduled) : null;
+                const isOverdue = lot?.dryEndScheduled && new Date(lot.dryEndScheduled) < new Date();
                 return (
-                  <div key={d.id} style={{ background: C.surface, border: `2px solid ${ss.border}`, borderRadius: 14, padding: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+                  <div key={d.id} style={{ background: C.surface, border: `2px solid ${isOverdue ? C.red : ss.border}`, borderRadius: 14, padding: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                      <span style={{ fontSize: 18, color: C.text, fontWeight: "800" }}>{dryerLabel(d.id)}</span>
+                      <span style={{ fontSize: 18, color: C.text, fontWeight: "800" }}>{dryerLabel(d.id, dryers)}</span>
                       <span style={{ fontSize: 14, background: ss.bg, color: ss.color, padding: "4px 12px", borderRadius: 20, border: `1px solid ${ss.border}`, fontWeight: "700" }}>{d.status}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${C.border}` }}>
                       <span style={{ fontSize: 15, color: C.textSub }}>容量: <b style={{ color: C.green }}>{d.capacity ? d.capacity + "石" : "未設定"}</b></span>
-                      <button onClick={() => { setSelectedDryer(d); setForm({ capacity: d.capacity || "" }); setModal("editCapacity"); }} style={smallBtn(C.primary)}>変更</button>
                     </div>
                     {lot && farmer ? (
                       <div>
@@ -323,10 +366,23 @@ export default function App() {
                         <Row label="品種" value={lot.variety} />
                         <Row label="持込" value={`${lot.tanIn}反 / ${lot.bagsIn}袋（${lot.bagType}）`} />
                         <Row label="水分(入)" value={lot.moistureIn ? lot.moistureIn + "%" : "—"} />
-                        <Row label="開始日" value={lot.dryStartAt || "—"} />
+                        {d.status === "乾燥中" && (
+                          <>
+                            <Row label="開始時刻" value={fmtDateTime(lot.dryStartAt)} />
+                            <Row label="終了予定" value={fmtDateTime(lot.dryEndScheduled)} />
+                            {remaining && (
+                              <div style={{ marginTop: 8, background: isOverdue ? C.redLight : C.orangeLight, border: `1px solid ${isOverdue ? C.redBorder : C.orangeBorder}`, borderRadius: 8, padding: "8px 12px", textAlign: "center" }}>
+                                <span style={{ fontSize: 15, fontWeight: "800", color: isOverdue ? C.red : C.orange }}>{remaining}</span>
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {d.status === "予約中" && (
+                          <Row label="受付日" value={lot.receivedAt} />
+                        )}
                         <div style={{ marginTop: 12 }}>
                           {d.status === "乾燥中" && <Btn color={C.green} full onClick={() => { setSelectedLot(lot); setModal("completeDrying"); }}>乾燥完了にする</Btn>}
-                          {d.status === "予約中" && <Btn color={C.orange} full onClick={() => startDrying(lot.id)}>乾燥開始</Btn>}
+                          {d.status === "予約中" && <Btn color={C.orange} full onClick={() => { setSelectedLot(lot); setForm({ dryEndScheduled: "" }); setModal("startDrying"); }}>乾燥開始</Btn>}
                         </div>
                       </div>
                     ) : (
@@ -364,7 +420,7 @@ export default function App() {
                     <span style={{ fontSize: 14, color: C.textMuted }}>受付日: {lot.receivedAt}</span>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8, marginBottom: 14 }}>
-                    {[["品種", lot.variety], ["持込量", `${lot.tanIn}反`], ["袋数", `${lot.bagsIn}袋（${lot.bagType}）`], ["水分(入)", lot.moistureIn ? lot.moistureIn + "%" : "—"], ["水分(出)", lot.moistureOut ? lot.moistureOut + "%" : "—"], ["乾燥機", dryer ? dryerLabel(dryer.id) : "未割当"]].map(([l, v]) => (
+                    {[["品種", lot.variety], ["持込量", `${lot.tanIn}反`], ["袋数", `${lot.bagsIn}袋（${lot.bagType}）`], ["水分(入)", lot.moistureIn ? lot.moistureIn + "%" : "—"], ["水分(出)", lot.moistureOut ? lot.moistureOut + "%" : "—"], ["乾燥機", dryer ? dryerLabel(dryer.id, dryers) : "未割当"]].map(([l, v]) => (
                       <div key={l} style={{ background: C.surfaceAlt, borderRadius: 8, padding: "8px 10px", border: `1px solid ${C.border}` }}>
                         <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 2 }}>{l}</div>
                         <div style={{ fontSize: 15, color: C.text, fontWeight: "700" }}>{v}</div>
@@ -373,7 +429,7 @@ export default function App() {
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {lot.status === "受付" && !lot.dryerId && <Btn color={C.orange} onClick={() => { setSelectedLot(lot); setModal("assignDryer"); }}>乾燥機を割り当て</Btn>}
-                    {lot.status === "受付" && lot.dryerId && <Btn color={C.sky} onClick={() => startDrying(lot.id)}>乾燥開始</Btn>}
+                    {lot.status === "受付" && lot.dryerId && <Btn color={C.sky} onClick={() => { setSelectedLot(lot); setForm({ dryEndScheduled: "" }); setModal("startDrying"); }}>乾燥開始</Btn>}
                     {lot.status === "乾燥中" && <Btn color={C.green} onClick={() => { setSelectedLot(lot); setModal("completeDrying"); }}>乾燥完了</Btn>}
                     {lot.status === "乾燥完了" && <Btn color={C.purple} onClick={() => { setSelectedLot(lot); setModal("hullingSchedule"); }}>籾摺り日程を設定</Btn>}
                   </div>
@@ -774,7 +830,7 @@ export default function App() {
                   <MF label="袋数"><input style={INP} type="number" value={form.bagsIn || ""} onChange={e => setForm({...form, bagsIn: e.target.value})} /></MF>
                   <MF label="袋種別"><select style={INP} value={form.bagType || "新袋"} onChange={e => setForm({...form, bagType: e.target.value})}>{BAG_TYPES.map(b => <option key={b}>{b}</option>)}</select></MF>
                 </div>
-                <MF label="乾燥機を予約（任意）"><select style={INP} value={form.dryerId || ""} onChange={e => setForm({...form, dryerId: e.target.value})}><option value="">-- 後で割り当て --</option>{dryers.filter(d => d.status === "空き").map(d => <option key={d.id} value={d.id}>{dryerLabel(d.id)}（空き）{d.capacity ? ` / ${d.capacity}石` : ""}</option>)}</select></MF>
+                <MF label="乾燥機を予約（任意）"><select style={INP} value={form.dryerId || ""} onChange={e => setForm({...form, dryerId: e.target.value})}><option value="">-- 後で割り当て --</option>{dryers.filter(d => d.status === "空き").map(d => <option key={d.id} value={d.id}>{dryerLabel(d.id, dryers)}（空き）{d.capacity ? ` / ${d.capacity}石` : ""}</option>)}</select></MF>
                 <MF label="受付日"><input style={INP} type="date" value={form.receivedAt || new Date().toISOString().slice(0,10)} onChange={e => setForm({...form, receivedAt: e.target.value})} /></MF>
                 <MF label="備考"><textarea style={{...INP, height: 60}} value={form.note || ""} onChange={e => setForm({...form, note: e.target.value})} /></MF>
                 <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
@@ -792,12 +848,12 @@ export default function App() {
                   <div style={{ fontSize: 15, color: C.textSub, marginTop: 4 }}>{selectedLot.tanIn}反 / {selectedLot.bagsIn}袋（{selectedLot.bagType}）</div>
                 </div>
                 <div style={{ fontSize: 15, color: C.textSub, marginBottom: 12, fontWeight: "600" }}>空いている乾燥機を選んでください：</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                   {dryers.map(d => {
                     const avail = d.status === "空き";
                     return (
-                      <button key={d.id} onClick={() => avail && assignDryer(d.id)} style={{ padding: "14px 4px", borderRadius: 10, border: avail ? `2px solid ${C.greenBorder}` : `1px solid ${C.border}`, background: avail ? C.greenLight : C.surfaceAlt, color: avail ? C.green : C.textMuted, cursor: avail ? "pointer" : "not-allowed", fontSize: 13, fontFamily: "inherit", fontWeight: avail ? "700" : "400" }}>
-                        <div>{dryerLabel(d.id)}</div>
+                      <button key={d.id} onClick={() => avail && assignDryer(d.id)} style={{ padding: "14px 8px", borderRadius: 10, border: avail ? `2px solid ${C.greenBorder}` : `1px solid ${C.border}`, background: avail ? C.greenLight : C.surfaceAlt, color: avail ? C.green : C.textMuted, cursor: avail ? "pointer" : "not-allowed", fontSize: 13, fontFamily: "inherit", fontWeight: avail ? "700" : "400" }}>
+                        <div>{dryerLabel(d.id, dryers)}</div>
                         <div style={{ fontSize: 11, marginTop: 2 }}>{d.status}</div>
                         {d.capacity && <div style={{ fontSize: 11 }}>{d.capacity}石</div>}
                       </button>
@@ -805,6 +861,30 @@ export default function App() {
                   })}
                 </div>
                 <div style={{ marginTop: 16 }}><Btn color={C.textSub} full onClick={() => setModal(null)}>キャンセル</Btn></div>
+              </div>
+            )}
+
+            {/* 乾燥開始モーダル（開始時刻・終了予定時刻入力） */}
+            {modal === "startDrying" && selectedLot && (
+              <div>
+                <MTitle>🔥 乾燥開始</MTitle>
+                <div style={{ background: C.surfaceAlt, borderRadius: 10, padding: 14, marginBottom: 18, border: `1px solid ${C.border}` }}>
+                  <div style={{ fontSize: 17, fontWeight: "700" }}>{getFarmer(selectedLot.farmerId)?.name} — {selectedLot.variety}</div>
+                  <div style={{ fontSize: 15, color: C.textSub, marginTop: 4 }}>{dryerLabel(getDryer(selectedLot.dryerId)?.id, dryers)}</div>
+                </div>
+                <MF label="終了予定日時">
+                  <input style={INP} type="datetime-local" value={form.dryEndScheduled || ""} onChange={e => setForm({...form, dryEndScheduled: e.target.value})} />
+                </MF>
+                <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 16 }}>※ 開始時刻は今この瞬間として記録されます</div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <Btn color={C.orange} full onClick={() => {
+                    const now = new Date().toISOString();
+                    setDryers(prev => prev.map(d => d.id === selectedLot.dryerId ? { ...d, lotId: selectedLot.id, status: "乾燥中" } : d));
+                    setLots(prev => prev.map(l => l.id === selectedLot.id ? { ...l, dryStartAt: now, dryEndScheduled: form.dryEndScheduled ? new Date(form.dryEndScheduled).toISOString() : null, status: "乾燥中" } : l));
+                    setSelectedLot(null); setModal(null); setForm({});
+                  }}>乾燥開始する</Btn>
+                  <Btn color={C.textSub} full onClick={() => setModal(null)}>キャンセル</Btn>
+                </div>
               </div>
             )}
 
