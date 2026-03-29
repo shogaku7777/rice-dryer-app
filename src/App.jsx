@@ -415,7 +415,62 @@ export default function App() {
         {/* ===== 実績日報 ===== */}
         {tab === "report" && (
           <div>
-            <SectionTitle>籾摺り実績日報</SectionTitle>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+              <SectionTitle noMargin>籾摺り実績日報</SectionTitle>
+              {completedHulling.length > 0 && (
+                <button onClick={() => {
+                  // SheetJSを動的に読み込んでExcel出力
+                  const script = document.createElement("script");
+                  script.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+                  script.onload = () => {
+                    const XLSX = window.XLSX;
+                    const headers = ["日付","氏名","品種","反別","JA供出","アグリ供出","他供出","飯米","籾乾燥","くず米","残米","水分","その他備考","籾摺り賃","籾乾燥賃","米袋代","くず米代（返金）","その他費用","請求合計"];
+                    const rows = [...completedHulling].sort((a, b) => a.date > b.date ? 1 : -1).map(h => {
+                      const lot = getLot(h.lotId);
+                      const farmer = lot ? getFarmer(lot.farmerId) : null;
+                      const r = h.result || {};
+                      const total = (Number(r.feeHulling)||0) + (Number(r.feeDrying)||0) + (Number(r.feeBag)||0) - (Number(r.feeKuzu)||0);
+                      return [
+                        h.date || "",
+                        farmer?.name || "",
+                        lot?.variety || "",
+                        r.tanBetsu || lot?.tanIn || "",
+                        r.jaSupply || "",
+                        r.agriSupply || "",
+                        r.otherSupply || "",
+                        r.iimaiCount ? `${r.iimaiType === "一空" ? "一空" : "新"}${r.iimaiCount}` : "",
+                        r.momiKanso || "",
+                        r.kuzuMai || "",
+                        r.zanMai || "",
+                        r.moisture || lot?.moistureOut || "",
+                        r.resultNote || "",
+                        r.feeHulling ? Number(r.feeHulling) : "",
+                        r.feeDrying ? Number(r.feeDrying) : "",
+                        r.feeBag ? Number(r.feeBag) : "",
+                        r.feeKuzu ? Number(r.feeKuzu) : "",
+                        r.feeOther || "",
+                        total > 0 ? total : "",
+                      ];
+                    });
+                    const wsData = [headers, ...rows];
+                    const ws = XLSX.utils.aoa_to_sheet(wsData);
+                    // 列幅設定
+                    ws["!cols"] = [
+                      {wch:12},{wch:14},{wch:14},{wch:8},{wch:9},{wch:11},{wch:9},{wch:10},
+                      {wch:12},{wch:9},{wch:9},{wch:8},{wch:16},{wch:11},{wch:11},{wch:9},{wch:13},{wch:12},{wch:11}
+                    ];
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "籾摺り実績日報");
+                    const year = new Date().getFullYear();
+                    XLSX.writeFile(wb, `籾摺り実績日報_${year}.xlsx`);
+                  };
+                  script.onerror = () => alert("ダウンロードに失敗しました。インターネット接続を確認してください。");
+                  document.head.appendChild(script);
+                }} style={{ background: C.green, color: "#fff", border: "none", borderRadius: 8, padding: "10px 18px", cursor: "pointer", fontSize: 15, fontFamily: "inherit", fontWeight: "700", display: "flex", alignItems: "center", gap: 6, boxShadow: "0 2px 4px rgba(0,0,0,0.15)" }}>
+                  📥 Excelで出力
+                </button>
+              )}
+            </div>
             {completedHulling.length === 0 && <Empty />}
             {completedHulling.length > 0 && (
               <div style={{ background: C.surface, borderRadius: 14, border: `2px solid ${C.border}`, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
