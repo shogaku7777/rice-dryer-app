@@ -231,7 +231,7 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 32 }}>🌾</span>
           <div>
-            <div style={{ fontSize: 20, fontWeight: "bold", color: "#f0c060", letterSpacing: 2 }}>ライスセンター管理システム</div>
+            <div style={{ fontSize: 18, fontWeight: "bold", color: "#f0c060", letterSpacing: 1 }}>ライスセンター管理システム</div>
             <div style={{ fontSize: 11, color: "#a08040", letterSpacing: 1 }}>乾燥機10台・籾摺り実績日報</div>
           </div>
         </div>
@@ -252,7 +252,7 @@ export default function App() {
             padding: "12px 16px", background: "none", border: "none", cursor: "pointer",
             color: tab === t.id ? "#f0c060" : "#6b7280",
             borderBottom: tab === t.id ? "2px solid #f0c060" : "2px solid transparent",
-            fontFamily: "inherit", fontSize: 12, whiteSpace: "nowrap",
+            fontFamily: "inherit", fontSize: 14, whiteSpace: "nowrap",
             fontWeight: tab === t.id ? "bold" : "normal",
           }}>{t.label}</button>
         ))}
@@ -274,8 +274,8 @@ export default function App() {
                 { label: "未精算", value: lots.filter(l => !l.paid && l.fee > 0).length + "件", color: "#f472b6" },
               ].map(s => (
                 <div key={s.label} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 10, padding: "14px 12px", textAlign: "center" }}>
-                  <div style={{ fontSize: 22, fontWeight: "bold", color: s.color }}>{s.value}</div>
-                  <div style={{ fontSize: 10, color: "#6b7280", marginTop: 4 }}>{s.label}</div>
+                  <div style={{ fontSize: 26, fontWeight: "bold", color: s.color }}>{s.value}</div>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{s.label}</div>
                 </div>
               ))}
             </div>
@@ -368,7 +368,7 @@ export default function App() {
                 return (
                   <div key={d.id} style={{ background: "#111827", border: `1px solid ${sc}40`, borderRadius: 10, padding: 16 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                      <span style={{ fontSize: 16, color: "#f0c060", fontWeight: "bold" }}>{dryerLabel(d.id)}</span>
+                      <span style={{ fontSize: 18, color: "#f0c060", fontWeight: "bold" }}>{dryerLabel(d.id)}</span>
                       <span style={{ fontSize: 12, background: `${sc}20`, color: sc, padding: "2px 8px", borderRadius: 10, border: `1px solid ${sc}` }}>{d.status}</span>
                     </div>
                     <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
@@ -418,8 +418,8 @@ export default function App() {
                 <div key={lot.id} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 10, padding: 16, marginBottom: 10 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
                     <div>
-                      <span style={{ fontSize: 15, color: "#e8dcc8", fontWeight: "bold", marginRight: 8 }}>{farmer?.name}</span>
-                      <span style={{ fontSize: 12, background: `${sc}20`, color: sc, padding: "2px 8px", borderRadius: 10, border: `1px solid ${sc}` }}>{lot.status}</span>
+                      <span style={{ fontSize: 17, color: "#e8dcc8", fontWeight: "bold", marginRight: 8 }}>{farmer?.name}</span>
+                      <span style={{ fontSize: 13, background: `${sc}20`, color: sc, padding: "3px 10px", borderRadius: 10, border: `1px solid ${sc}` }}>{lot.status}</span>
                     </div>
                     <div style={{ fontSize: 11, color: "#6b7280" }}>{lot.receivedAt}</div>
                   </div>
@@ -464,7 +464,7 @@ export default function App() {
                 <div key={h.id} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 10, padding: 16, marginBottom: 10 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                     <div>
-                      <span style={{ fontSize: 14, color: "#e8dcc8", fontWeight: "bold", marginRight: 8 }}>{farmer?.name || "不明"}</span>
+                      <span style={{ fontSize: 16, color: "#e8dcc8", fontWeight: "bold", marginRight: 8 }}>{farmer?.name || "不明"}</span>
                       <span style={{ fontSize: 12, background: `${sc}20`, color: sc, padding: "2px 8px", borderRadius: 10, border: `1px solid ${sc}` }}>{h.status}</span>
                     </div>
                     <div style={{ fontSize: 13, color: "#f0c060" }}>📅 {h.date}</div>
@@ -555,10 +555,10 @@ export default function App() {
                 <div key={f.id} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 10, padding: 16, marginBottom: 10 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 16, color: "#e8dcc8", fontWeight: "bold" }}>{f.name}</div>
+                      <div style={{ fontSize: 18, color: "#e8dcc8", fontWeight: "bold" }}>{f.name}</div>
                       {/* 電話番号タップで電話発信 */}
                       {f.phone && (
-                        <a href={`tel:${f.phone}`} style={{ fontSize: 13, color: "#38bdf8", marginTop: 4, display: "block", textDecoration: "none" }}>
+                        <a href={`tel:${f.phone}`} style={{ fontSize: 15, color: "#38bdf8", marginTop: 6, display: "block", textDecoration: "none" }}>
                           📞 {f.phone}
                         </a>
                       )}
@@ -605,7 +605,7 @@ export default function App() {
                 <div key={lot.id} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 10, padding: 14, marginBottom: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 14, color: "#e8dcc8", fontWeight: "bold" }}>{farmer?.name}</span>
+                      <span style={{ fontSize: 16, color: "#e8dcc8", fontWeight: "bold" }}>{farmer?.name}</span>
                       <span style={{ fontSize: 11, background: `${sc}20`, color: sc, padding: "2px 6px", borderRadius: 8, border: `1px solid ${sc}` }}>{lot.status}</span>
                     </div>
                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -835,34 +835,34 @@ export default function App() {
   );
 }
 
-const sectionTitle = { color: "#f0c060", fontSize: 18, marginBottom: 16, borderLeft: "3px solid #f0c060", paddingLeft: 10, margin: "0 0 16px 0" };
-const tdStyle = { padding: "7px 10px", color: "#c8bca8", textAlign: "center", whiteSpace: "nowrap" };
+const sectionTitle = { color: "#f0c060", fontSize: 22, marginBottom: 16, borderLeft: "4px solid #f0c060", paddingLeft: 12, margin: "0 0 16px 0", fontWeight: "bold" };
+const tdStyle = { padding: "10px 12px", color: "#c8bca8", textAlign: "center", whiteSpace: "nowrap", fontSize: 14 };
 const btnStyle = (color, full = false, small = false) => ({
-  background: `${color}20`, color, border: `1px solid ${color}`, borderRadius: 6,
-  padding: small ? "3px 8px" : "7px 14px", cursor: "pointer", fontSize: small ? 11 : 12,
-  fontFamily: "inherit", width: full ? "100%" : "auto",
+  background: `${color}20`, color, border: `1px solid ${color}`, borderRadius: 8,
+  padding: small ? "6px 12px" : "10px 18px", cursor: "pointer", fontSize: small ? 13 : 15,
+  fontFamily: "inherit", width: full ? "100%" : "auto", fontWeight: "bold",
 });
 const inputStyle = {
-  width: "100%", background: "#0f172a", border: "1px solid #374151", borderRadius: 6,
-  color: "#e8dcc8", padding: "8px 10px", fontSize: 13, fontFamily: "inherit", boxSizing: "border-box",
+  width: "100%", background: "#0f172a", border: "1px solid #374151", borderRadius: 8,
+  color: "#e8dcc8", padding: "12px 14px", fontSize: 16, fontFamily: "inherit", boxSizing: "border-box",
 };
 function Label({ children }) {
-  return <span style={{ fontSize: 11, color: "#6b7280", marginRight: 6 }}>{children}:</span>;
+  return <span style={{ fontSize: 13, color: "#6b7280", marginRight: 6 }}>{children}:</span>;
 }
 function Field({ label, children }) {
-  return <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>{label}</div>{children}</div>;
+  return <div style={{ marginBottom: 14 }}><div style={{ fontSize: 13, color: "#9ca3af", marginBottom: 6 }}>{label}</div>{children}</div>;
 }
 function Info({ label, value, small }) {
   return (
-    <div style={{ background: "#1e293b", borderRadius: 6, padding: "6px 8px" }}>
-      <div style={{ fontSize: 10, color: "#6b7280" }}>{label}</div>
-      <div style={{ fontSize: small ? 11 : 12, color: "#e8dcc8", marginTop: 2 }}>{value}</div>
+    <div style={{ background: "#1e293b", borderRadius: 8, padding: "8px 10px" }}>
+      <div style={{ fontSize: 12, color: "#6b7280" }}>{label}</div>
+      <div style={{ fontSize: small ? 13 : 15, color: "#e8dcc8", marginTop: 3, fontWeight: "bold" }}>{value}</div>
     </div>
   );
 }
 function ModalTitle({ children }) {
-  return <h3 style={{ color: "#f0c060", fontSize: 16, marginBottom: 16, paddingBottom: 10, borderBottom: "1px solid #374151" }}>{children}</h3>;
+  return <h3 style={{ color: "#f0c060", fontSize: 18, marginBottom: 16, paddingBottom: 10, borderBottom: "1px solid #374151" }}>{children}</h3>;
 }
 function EmptyState({ children }) {
-  return <div style={{ textAlign: "center", color: "#4b5563", padding: "40px 0", fontSize: 14 }}>{children}</div>;
+  return <div style={{ textAlign: "center", color: "#4b5563", padding: "40px 0", fontSize: 16 }}>{children}</div>;
 }
