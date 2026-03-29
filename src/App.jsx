@@ -143,7 +143,7 @@ export default function App() {
   };
   const saveHullingResult = (isEdit) => {
     if (!selectedHulling) return;
-    const result = { jaSupply: form.jaSupply || "", agriSupply: form.agriSupply || "", otherSupply: form.otherSupply || "", iimaiCount: form.iimaiCount || "", iimaiType: form.iimaiType || "新袋", momiKanso: form.momiKanso || "", kuzuMai: form.kuzuMai || "", zanMai: form.zanMai || "", tanBetsu: form.tanBetsu || "", moisture: form.moisture || "", resultNote: form.resultNote || "" };
+    const result = { jaSupply: form.jaSupply || "", agriSupply: form.agriSupply || "", otherSupply: form.otherSupply || "", iimaiCount: form.iimaiCount || "", iimaiType: form.iimaiType || "新袋", momiKanso: form.momiKanso || "", kuzuMai: form.kuzuMai || "", zanMai: form.zanMai || "", tanBetsu: form.tanBetsu || "", moisture: form.moisture || "", resultNote: form.resultNote || "", feeHulling: form.feeHulling || "", feeDrying: form.feeDrying || "", feeBag: form.feeBag || "", feeKuzu: form.feeKuzu || "", feeOther: form.feeOther || "" };
     setHulling(prev => prev.map(h => h.id === selectedHulling.id ? { ...h, status: isEdit ? h.status : "完了", result } : h));
     if (!isEdit) {
       const h = hulling.find(h => h.id === selectedHulling.id);
@@ -423,7 +423,7 @@ export default function App() {
                   <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
                     <thead>
                       <tr style={{ background: C.primary }}>
-                        {["日付","氏名","JA供出","アグリ供出","他供出","飯米","籾乾燥","くず米","残米","反別","水分","その他","操作"].map((h, i) => (
+                        {["日付","氏名","JA供出","アグリ供出","他供出","飯米","籾乾燥","くず米","残米","反別","水分","その他","籾摺り賃","籾乾燥賃","米袋代","くず米代","その他費用","操作"].map((h, i) => (
                           <th key={i} style={{ padding: "12px 10px", color: "#ffffff", textAlign: "center", whiteSpace: "nowrap", fontWeight: "700", fontSize: 14 }}>{h}</th>
                         ))}
                       </tr>
@@ -447,9 +447,14 @@ export default function App() {
                             <td style={TD}>{r.tanBetsu || lot?.tanIn || "—"}</td>
                             <td style={TD}>{r.moisture || lot?.moistureOut || "—"}</td>
                             <td style={{ ...TD, color: C.textSub }}>{r.resultNote || "—"}</td>
+                            <td style={{ ...TD, color: C.green, fontWeight: "700" }}>{r.feeHulling ? `¥${Number(r.feeHulling).toLocaleString()}` : "—"}</td>
+                            <td style={{ ...TD, color: C.green, fontWeight: "700" }}>{r.feeDrying ? `¥${Number(r.feeDrying).toLocaleString()}` : "—"}</td>
+                            <td style={{ ...TD, color: C.green, fontWeight: "700" }}>{r.feeBag ? `¥${Number(r.feeBag).toLocaleString()}` : "—"}</td>
+                            <td style={{ ...TD, color: C.green, fontWeight: "700" }}>{r.feeKuzu ? `¥${Number(r.feeKuzu).toLocaleString()}` : "—"}</td>
+                            <td style={{ ...TD, color: C.textSub }}>{r.feeOther || "—"}</td>
                             <td style={TD}>
                               <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
-                                <button onClick={() => { setSelectedHulling(h); setForm({ ...r }); setModal("editHulling"); }} style={smallBtn(C.gold)}>✏️ 訂正</button>
+                                <button onClick={() => { setSelectedHulling(h); setForm({ ...r, feeHulling: r.feeHulling || "", feeDrying: r.feeDrying || "", feeBag: r.feeBag || "", feeKuzu: r.feeKuzu || "", feeOther: r.feeOther || "" }); setModal("editHulling"); }} style={smallBtn(C.gold)}>✏️ 訂正</button>
                                 <button onClick={() => {
                                   const name = farmer?.name || "";
                                   const variety = lot?.variety || "";
@@ -457,13 +462,21 @@ export default function App() {
                                   const date = h.date || "";
                                   const moisture = r.moisture || lot?.moistureOut || "";
                                   const fee = lot?.fee ? `¥${Number(lot.fee).toLocaleString()}` : "未設定";
+                                  const feeHulling = r.feeHulling ? `籾摺り賃: ¥${Number(r.feeHulling).toLocaleString()}` : "";
+                                  const feeDrying = r.feeDrying ? `籾乾燥賃: ¥${Number(r.feeDrying).toLocaleString()}` : "";
+                                  const feeBag = r.feeBag ? `米袋代: ¥${Number(r.feeBag).toLocaleString()}` : "";
+                                  const feeKuzu = r.feeKuzu ? `くず米代: ¥${Number(r.feeKuzu).toLocaleString()}` : "";
+                                  const feeOther = r.feeOther ? `その他: ${r.feeOther}` : "";
+                                  const feeLines = [feeHulling, feeDrying, feeBag, feeKuzu, feeOther].filter(Boolean).join("\n");
+                                  const totalFee = [r.feeHulling, r.feeDrying, r.feeBag, r.feeKuzu].reduce((sum, v) => sum + (Number(v) || 0), 0);
+                                  const totalLine = totalFee > 0 ? `\n合計: ¥${totalFee.toLocaleString()}` : "";
                                   const supplies = [
                                     r.jaSupply ? `JA供出: ${r.jaSupply}袋` : "",
                                     r.agriSupply ? `アグリ供出: ${r.agriSupply}袋` : "",
                                     r.otherSupply ? `他供出: ${r.otherSupply}袋` : "",
                                     r.iimaiCount ? `飯米: ${r.iimaiType === "一空" ? "一空" : "新"}${r.iimaiCount}袋` : "",
                                   ].filter(Boolean).join("\n");
-                                  const msg = `【籾摺り完了のお知らせ】\n${name} 様\n\n籾摺り作業が完了しましたのでお知らせします。\n\n品種: ${variety}\n反別: ${tan}反\n完了日: ${date}\n水分値: ${moisture}%\n\n${supplies}\n\n精算金額: ${fee}\n\nよろしくお願いいたします。`;
+                                  const msg = `【籾摺り完了のお知らせ】\n${name} 様\n\n籾摺り作業が完了しましたのでお知らせします。\n\n品種: ${variety}\n反別: ${tan}反\n完了日: ${date}\n水分値: ${moisture}%\n\n${supplies}\n\n【精算金額】\n${feeLines}${totalLine}\n\nよろしくお願いいたします。`;
                                   navigator.clipboard.writeText(msg).then(() => alert("LINEメッセージをコピーしました！")).catch(() => alert("コピーに失敗しました"));
                                 }} style={smallBtn(C.green)}>📋 LINEコピー</button>
                               </div>
@@ -569,7 +582,6 @@ export default function App() {
                 <MF label="電話番号"><input style={INP} type="tel" value={form.phone || ""} onChange={e => setForm({...form, phone: e.target.value})} placeholder="090-0000-0000" /></MF>
                 <MF label="地区名"><input style={INP} value={form.district || ""} onChange={e => setForm({...form, district: e.target.value})} placeholder="例: 竹田地区" /></MF>
                 <MF label="住所（マップ表示対応）"><input style={INP} value={form.address || ""} onChange={e => setForm({...form, address: e.target.value})} placeholder="例: 大分県大分市○○町1-2-3" /></MF>
-                <MF label="サービス種別"><select style={INP} value={form.service || "乾燥＋籾摺り"} onChange={e => setForm({...form, service: e.target.value})}>{SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}</select></MF>
                 <MF label="備考"><textarea style={{...INP, height: 70}} value={form.note || ""} onChange={e => setForm({...form, note: e.target.value})} /></MF>
                 <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
                   <Btn color={C.primary} full onClick={modal === "addFarmer" ? addFarmer : editFarmer}>{modal === "addFarmer" ? "登録する" : "保存する"}</Btn>
@@ -698,6 +710,27 @@ export default function App() {
                 </div>
                 <MF label="水分 (%)"><input style={INP} type="number" step="0.1" value={form.moisture || ""} onChange={e => setForm({...form, moisture: e.target.value})} placeholder="例: 14.5" /></MF>
                 <MF label="その他備考"><textarea style={{...INP, height: 60}} value={form.resultNote || ""} onChange={e => setForm({...form, resultNote: e.target.value})} /></MF>
+
+                {/* 金額入力 */}
+                <div style={{ borderTop: `2px solid ${C.border}`, marginTop: 16, paddingTop: 16 }}>
+                  <div style={{ fontSize: 15, fontWeight: "800", color: C.text, marginBottom: 12 }}>💰 精算金額</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <MF label="籾摺り賃 (円)"><input style={INP} type="number" value={form.feeHulling || ""} onChange={e => setForm({...form, feeHulling: e.target.value})} placeholder="0" /></MF>
+                    <MF label="籾乾燥賃 (円)"><input style={INP} type="number" value={form.feeDrying || ""} onChange={e => setForm({...form, feeDrying: e.target.value})} placeholder="0" /></MF>
+                    <MF label="米袋代 (円)"><input style={INP} type="number" value={form.feeBag || ""} onChange={e => setForm({...form, feeBag: e.target.value})} placeholder="0" /></MF>
+                    <MF label="くず米代 (円)"><input style={INP} type="number" value={form.feeKuzu || ""} onChange={e => setForm({...form, feeKuzu: e.target.value})} placeholder="0" /></MF>
+                  </div>
+                  <MF label="その他 (内容・金額など自由入力)"><input style={INP} value={form.feeOther || ""} onChange={e => setForm({...form, feeOther: e.target.value})} placeholder="例: 運搬費 ¥1,000" /></MF>
+                  {/* 合計表示 */}
+                  {[form.feeHulling, form.feeDrying, form.feeBag, form.feeKuzu].some(v => v) && (
+                    <div style={{ background: C.greenLight, border: `1px solid ${C.greenBorder}`, borderRadius: 8, padding: "10px 14px", textAlign: "right" }}>
+                      <span style={{ fontSize: 15, color: C.textSub }}>合計: </span>
+                      <span style={{ fontSize: 18, fontWeight: "800", color: C.green }}>
+                        ¥{[form.feeHulling, form.feeDrying, form.feeBag, form.feeKuzu].reduce((s, v) => s + (Number(v) || 0), 0).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
                   <Btn color={C.teal} full onClick={() => saveHullingResult(modal === "editHulling")}>{modal === "completeHulling" ? "完了・日報に記録" : "訂正を保存"}</Btn>
                   <Btn color={C.textSub} full onClick={() => setModal(null)}>キャンセル</Btn>
