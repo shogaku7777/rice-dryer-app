@@ -77,6 +77,7 @@ const googleMapsUrl = (addr) => `https://www.google.com/maps/search/?api=1&query
 
 export default function App() {
   const [tab, setTab] = useState("dashboard");
+  const [reportSort, setReportSort] = useState({ key: "date", dir: "asc" });
   const [farmers, setFarmers] = useState(() => loadData(STORAGE_KEYS.farmers, []));
   const [lots, setLots] = useState(() => loadData(STORAGE_KEYS.lots, []));
   const [dryers, setDryers] = useState(() => loadData(STORAGE_KEYS.dryers, defaultDryers));
@@ -478,13 +479,39 @@ export default function App() {
                   <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
                     <thead>
                       <tr style={{ background: C.primary }}>
-                        {["日付","氏名","JA供出","アグリ供出","他供出","飯米","籾乾燥","くず米","残米","反別","水分","その他","籾摺り賃","籾乾燥賃","米袋代","くず米代","その他費用","操作"].map((h, i) => (
+                        {[
+                          { label: "日付", key: "date" },
+                          { label: "氏名", key: "name" },
+                          { label: "JA供出", key: "jaSupply" },
+                          { label: "アグリ供出", key: "agriSupply" },
+                          { label: "他供出", key: "otherSupply" },
+                        ].map(col => (
+                          <th key={col.key} onClick={() => setReportSort(prev => ({ key: col.key, dir: prev.key === col.key && prev.dir === "asc" ? "desc" : "asc" }))} style={{ padding: "12px 10px", color: "#ffffff", textAlign: "center", whiteSpace: "nowrap", fontWeight: "700", fontSize: 14, cursor: "pointer", userSelect: "none", background: reportSort.key === col.key ? "#1e40af" : C.primary }}>
+                            {col.label} {reportSort.key === col.key ? (reportSort.dir === "asc" ? "▲" : "▼") : "⇅"}
+                          </th>
+                        ))}
+                        {["飯米","籾乾燥","くず米","残米","反別","水分","その他","籾摺り賃","籾乾燥賃","米袋代","くず米代","その他費用","操作"].map((h, i) => (
                           <th key={i} style={{ padding: "12px 10px", color: "#ffffff", textAlign: "center", whiteSpace: "nowrap", fontWeight: "700", fontSize: 14 }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {[...completedHulling].sort((a, b) => a.date > b.date ? 1 : -1).map((h, i) => {
+                      {[...completedHulling].sort((a, b) => {
+                        const lotA = getLot(a.lotId); const lotB = getLot(b.lotId);
+                        const farmerA = lotA ? getFarmer(lotA.farmerId) : null;
+                        const farmerB = lotB ? getFarmer(lotB.farmerId) : null;
+                        const rA = a.result || {}; const rB = b.result || {};
+                        let valA, valB;
+                        if (reportSort.key === "date") { valA = a.date || ""; valB = b.date || ""; }
+                        else if (reportSort.key === "name") { valA = farmerA?.name || ""; valB = farmerB?.name || ""; }
+                        else if (reportSort.key === "jaSupply") { valA = Number(rA.jaSupply) || 0; valB = Number(rB.jaSupply) || 0; }
+                        else if (reportSort.key === "agriSupply") { valA = Number(rA.agriSupply) || 0; valB = Number(rB.agriSupply) || 0; }
+                        else if (reportSort.key === "otherSupply") { valA = Number(rA.otherSupply) || 0; valB = Number(rB.otherSupply) || 0; }
+                        else { valA = a.date || ""; valB = b.date || ""; }
+                        if (valA < valB) return reportSort.dir === "asc" ? -1 : 1;
+                        if (valA > valB) return reportSort.dir === "asc" ? 1 : -1;
+                        return 0;
+                      }).map((h, i) => {
                         const lot = getLot(h.lotId);
                         const farmer = lot ? getFarmer(lot.farmerId) : null;
                         const r = h.result || {};
