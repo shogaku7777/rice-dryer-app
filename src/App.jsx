@@ -594,6 +594,12 @@ export default function App() {
                               <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
                                 <button onClick={() => { setSelectedHulling(h); setForm({ ...r, feeHulling: r.feeHulling || "", feeDrying: r.feeDrying || "", feeBag: r.feeBag || "", feeKuzu: r.feeKuzu || "", feeOther: r.feeOther || "" }); setModal("editHulling"); }} style={smallBtn(C.gold)}>✏️ 訂正</button>
                                 <button onClick={() => {
+                                  if (window.confirm(`「${farmer?.name || "この記録"}」を日報から削除しますか？`)) {
+                                    setHulling(prev => prev.filter(hh => hh.id !== h.id));
+                                    setLots(prev => prev.map(l => l.id === h.lotId ? { ...l, status: "乾燥完了", hullingId: null } : l));
+                                  }
+                                }} style={smallBtn(C.red)}>🗑️</button>
+                                <button onClick={() => {
                                   const name = farmer?.name || "";
                                   const variety = lot?.variety || "";
                                   const tan = r.tanBetsu || lot?.tanIn || "";
@@ -635,7 +641,7 @@ export default function App() {
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <SectionTitle noMargin>顧客管理</SectionTitle>
-              <Btn color={C.primary} onClick={() => { setForm({}); setModal("addFarmer"); }}>＋ 顧客を登録</Btn>
+              <Btn color={C.primary} onClick={() => { setForm({ service: "" }); setModal("addFarmer"); }}>＋ 顧客を登録</Btn>
             </div>
             {farmers.length === 0 && <Empty />}
             {farmers.map(f => {
@@ -704,6 +710,12 @@ export default function App() {
                         </button>
                       )}
                       <button onClick={() => { setSelectedLot(lot); setForm({ feeHulling: r.feeHulling || "", feeDrying: r.feeDrying || "", feeBag: r.feeBag || "", feeKuzu: r.feeKuzu || "", feeOther: r.feeOther || "" }); setModal("editFee"); }} style={smallBtn(C.gold)}>💰 金額を入力</button>
+                      <button onClick={() => {
+                        if (window.confirm(`「${farmer?.name}」のこの記録を削除しますか？`)) {
+                          setLots(prev => prev.filter(l => l.id !== lot.id));
+                          setHulling(prev => prev.filter(h => h.lotId !== lot.id));
+                        }
+                      }} style={smallBtn(C.red)}>🗑️ 削除</button>
                     </div>
                   </div>
 
@@ -795,8 +807,8 @@ export default function App() {
                 <MTitle>{modal === "addFarmer" ? "👥 顧客を登録" : "✏️ 顧客情報を編集"}</MTitle>
                 <MF label="氏名 *"><input style={INP} value={form.name || ""} onChange={e => setForm({...form, name: e.target.value})} placeholder="例: 山田 太郎" /></MF>
                 <MF label="電話番号"><input style={INP} type="tel" value={form.phone || ""} onChange={e => setForm({...form, phone: e.target.value})} placeholder="090-0000-0000" /></MF>
-                <MF label="地区名"><input style={INP} value={form.district || ""} onChange={e => setForm({...form, district: e.target.value})} placeholder="例: 市谷地区" /></MF>
-                <MF label="住所（マップ表示対応）"><input style={INP} value={form.address || ""} onChange={e => setForm({...form, address: e.target.value})} placeholder="例: 宮崎県小林市○○町1-2-3" /></MF>
+                <MF label="地区名"><input style={INP} value={form.district || ""} onChange={e => setForm({...form, district: e.target.value})} placeholder="例: 竹田地区" /></MF>
+                <MF label="住所（マップ表示対応）"><input style={INP} value={form.address || ""} onChange={e => setForm({...form, address: e.target.value})} placeholder="例: 大分県大分市○○町1-2-3" /></MF>
                 <MF label="備考"><textarea style={{...INP, height: 70}} value={form.note || ""} onChange={e => setForm({...form, note: e.target.value})} /></MF>
                 <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
                   <Btn color={C.primary} full onClick={modal === "addFarmer" ? addFarmer : editFarmer}>{modal === "addFarmer" ? "登録する" : "保存する"}</Btn>
