@@ -795,8 +795,8 @@ export default function App() {
                 <MTitle>{modal === "addFarmer" ? "👥 顧客を登録" : "✏️ 顧客情報を編集"}</MTitle>
                 <MF label="氏名 *"><input style={INP} value={form.name || ""} onChange={e => setForm({...form, name: e.target.value})} placeholder="例: 山田 太郎" /></MF>
                 <MF label="電話番号"><input style={INP} type="tel" value={form.phone || ""} onChange={e => setForm({...form, phone: e.target.value})} placeholder="090-0000-0000" /></MF>
-                <MF label="地区名"><input style={INP} value={form.district || ""} onChange={e => setForm({...form, district: e.target.value})} placeholder="例: 竹田地区" /></MF>
-                <MF label="住所（マップ表示対応）"><input style={INP} value={form.address || ""} onChange={e => setForm({...form, address: e.target.value})} placeholder="例: 大分県大分市○○町1-2-3" /></MF>
+                <MF label="地区名"><input style={INP} value={form.district || ""} onChange={e => setForm({...form, district: e.target.value})} placeholder="例: 市谷地区" /></MF>
+                <MF label="住所（マップ表示対応）"><input style={INP} value={form.address || ""} onChange={e => setForm({...form, address: e.target.value})} placeholder="例: 宮崎県小林市○○町1-2-3" /></MF>
                 <MF label="備考"><textarea style={{...INP, height: 70}} value={form.note || ""} onChange={e => setForm({...form, note: e.target.value})} /></MF>
                 <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
                   <Btn color={C.primary} full onClick={modal === "addFarmer" ? addFarmer : editFarmer}>{modal === "addFarmer" ? "登録する" : "保存する"}</Btn>
