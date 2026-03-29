@@ -664,7 +664,6 @@ export default function App() {
                           <a href={googleMapsUrl(f.address)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: C.teal, border: `1px solid ${C.tealBorder}`, borderRadius: 20, padding: "4px 12px", textDecoration: "none", background: C.tealLight, fontWeight: "600", whiteSpace: "nowrap" }}>🗺️ マップ</a>
                         </div>
                       )}
-                      <span style={{ fontSize: 14, color: C.primary, background: C.primaryLight, padding: "4px 12px", borderRadius: 20, border: `1px solid ${C.primaryBorder}`, fontWeight: "600" }}>{f.service}</span>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, marginLeft: 12 }}>
                       <button onClick={() => { setSelectedFarmer(f); setForm({ name: f.name, phone: f.phone, address: f.address, district: f.district, service: f.service, note: f.note }); setModal("editFarmer"); }} style={smallBtn(C.gold)}>✏️ 編集</button>
