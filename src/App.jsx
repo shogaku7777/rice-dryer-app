@@ -175,9 +175,9 @@ export default function App() {
     { id: "dryers",    label: "乾燥機管理" },
     { id: "reception", label: "受付・持込" },
     { id: "hulling",   label: "籾摺り" },
+    { id: "history",   label: "精算管理" },
     { id: "report",    label: "実績日報" },
     { id: "farmers",   label: "顧客管理" },
-    { id: "history",   label: "精算管理" },
   ];
 
   return (
@@ -543,26 +543,102 @@ export default function App() {
             {[...lots].reverse().map(lot => {
               const farmer = getFarmer(lot.farmerId);
               const ss = STATUS[lot.status] || { color: C.textSub, bg: C.surfaceAlt, border: C.border };
+              const hullRec = hulling.find(h => h.lotId === lot.id && h.result);
+              const r = hullRec?.result || lot.directFee || {};
+              const totalFee = [r.feeHulling, r.feeDrying, r.feeBag, r.feeKuzu].reduce((s, v) => s + (Number(v) || 0), 0);
               return (
-                <div key={lot.id} style={{ background: C.surface, border: `2px solid ${C.border}`, borderRadius: 14, padding: 18, marginBottom: 10 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                <div key={lot.id} style={{ background: C.surface, border: `2px solid ${C.border}`, borderRadius: 14, padding: 20, marginBottom: 14 }}>
+                  {/* ヘッダー行 */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontSize: 18, fontWeight: "800" }}>{farmer?.name}</span>
+                      <span style={{ fontSize: 20, fontWeight: "800" }}>{farmer?.name}</span>
                       <span style={{ fontSize: 14, background: ss.bg, color: ss.color, padding: "4px 12px", borderRadius: 20, border: `1px solid ${ss.border}`, fontWeight: "700" }}>{lot.status}</span>
                     </div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      {lot.fee > 0 && <span style={{ fontSize: 16, color: lot.paid ? C.green : C.red, fontWeight: "700" }}>¥{lot.fee.toLocaleString()} {lot.paid ? "✓ 精算済" : "未精算"}</span>}
-                      {lot.fee > 0 && <button onClick={() => togglePaid(lot.id)} style={smallBtn(lot.paid ? C.textSub : C.green)}>{lot.paid ? "未精算に戻す" : "精算済みにする"}</button>}
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      {totalFee > 0 && (
+                        <span style={{ fontSize: 17, color: lot.paid ? C.green : C.red, fontWeight: "800" }}>
+                          合計 ¥{totalFee.toLocaleString()} {lot.paid ? "✓ 精算済" : "未精算"}
+                        </span>
+                      )}
+                      {totalFee > 0 && (
+                        <button onClick={() => togglePaid(lot.id)} style={smallBtn(lot.paid ? C.textSub : C.green)}>
+                          {lot.paid ? "未精算に戻す" : "精算済みにする"}
+                        </button>
+                      )}
+                      <button onClick={() => { setSelectedLot(lot); setForm({ feeHulling: r.feeHulling || "", feeDrying: r.feeDrying || "", feeBag: r.feeBag || "", feeKuzu: r.feeKuzu || "", feeOther: r.feeOther || "" }); setModal("editFee"); }} style={smallBtn(C.gold)}>💰 金額を入力</button>
                     </div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8 }}>
-                    {[["品種", lot.variety], ["受付日", lot.receivedAt], ["持込量", `${lot.tanIn}反`], ["袋数", `${lot.bagsIn}袋`], ["水分(入)", lot.moistureIn ? lot.moistureIn+"%" : "—"], ["水分(出)", lot.moistureOut ? lot.moistureOut+"%" : "—"]].map(([l, v]) => (
+
+                  {/* 基本情報 */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8, marginBottom: 14 }}>
+                    {[
+                      ["品種", lot.variety],
+                      ["受付日", lot.receivedAt],
+                      ["持込量", `${lot.tanIn}反`],
+                      ["袋数", `${lot.bagsIn}袋（${lot.bagType || "新袋"}）`],
+                      ["水分(入)", lot.moistureIn ? lot.moistureIn + "%" : "—"],
+                      ["水分(出)", lot.moistureOut ? lot.moistureOut + "%" : "—"],
+                      ["乾燥完了", lot.dryEndAt || "—"],
+                      ["籾摺り日", hullRec?.date || "—"],
+                    ].map(([l, v]) => (
                       <div key={l} style={{ background: C.surfaceAlt, borderRadius: 8, padding: "8px 10px", border: `1px solid ${C.border}` }}>
                         <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 2 }}>{l}</div>
                         <div style={{ fontSize: 15, color: C.text, fontWeight: "700" }}>{v}</div>
                       </div>
                     ))}
                   </div>
+
+                  {/* 供出情報 */}
+                  {hullRec && (
+                    <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12, marginBottom: 12 }}>
+                      <div style={{ fontSize: 13, color: C.textMuted, fontWeight: "700", marginBottom: 8 }}>供出・実績</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8 }}>
+                        {[
+                          ["JA供出", r.jaSupply ? r.jaSupply + "袋" : "—"],
+                          ["アグリ供出", r.agriSupply ? r.agriSupply + "袋" : "—"],
+                          ["他供出", r.otherSupply ? r.otherSupply + "袋" : "—"],
+                          ["飯米", r.iimaiCount ? `${r.iimaiType === "一空" ? "一空" : "新"}${r.iimaiCount}袋` : "—"],
+                          ["籾乾燥", r.momiKanso || "—"],
+                          ["くず米", r.kuzuMai || "—"],
+                          ["残米", r.zanMai || "—"],
+                          ["反別", r.tanBetsu || lot.tanIn || "—"],
+                          ["水分", r.moisture ? r.moisture + "%" : "—"],
+                        ].map(([l, v]) => (
+                          <div key={l} style={{ background: C.surfaceAlt, borderRadius: 8, padding: "8px 10px", border: `1px solid ${C.border}` }}>
+                            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 2 }}>{l}</div>
+                            <div style={{ fontSize: 15, color: C.text, fontWeight: "700" }}>{v}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 金額内訳 */}
+                  {(r.feeHulling || r.feeDrying || r.feeBag || r.feeKuzu || r.feeOther) && (
+                    <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+                      <div style={{ fontSize: 13, color: C.textMuted, fontWeight: "700", marginBottom: 8 }}>金額内訳</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
+                        {[
+                          ["籾摺り賃", r.feeHulling ? `¥${Number(r.feeHulling).toLocaleString()}` : null],
+                          ["籾乾燥賃", r.feeDrying ? `¥${Number(r.feeDrying).toLocaleString()}` : null],
+                          ["米袋代", r.feeBag ? `¥${Number(r.feeBag).toLocaleString()}` : null],
+                          ["くず米代", r.feeKuzu ? `¥${Number(r.feeKuzu).toLocaleString()}` : null],
+                          ["その他", r.feeOther || null],
+                        ].filter(([, v]) => v).map(([l, v]) => (
+                          <div key={l} style={{ background: C.greenLight, borderRadius: 8, padding: "8px 10px", border: `1px solid ${C.greenBorder}` }}>
+                            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 2 }}>{l}</div>
+                            <div style={{ fontSize: 15, color: C.green, fontWeight: "700" }}>{v}</div>
+                          </div>
+                        ))}
+                        {totalFee > 0 && (
+                          <div style={{ background: C.green, borderRadius: 8, padding: "8px 10px" }}>
+                            <div style={{ fontSize: 12, color: "#86efac", marginBottom: 2 }}>合計</div>
+                            <div style={{ fontSize: 16, color: "#ffffff", fontWeight: "800" }}>¥{totalFee.toLocaleString()}</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -587,6 +663,18 @@ export default function App() {
                   <Btn color={C.primary} full onClick={modal === "addFarmer" ? addFarmer : editFarmer}>{modal === "addFarmer" ? "登録する" : "保存する"}</Btn>
                   <Btn color={C.textSub} full onClick={() => setModal(null)}>キャンセル</Btn>
                 </div>
+                {modal === "editFarmer" && (
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+                    <button onClick={() => {
+                      if (window.confirm(`「${selectedFarmer?.name}」を削除しますか？\n関連するデータは残ります。`)) {
+                        setFarmers(prev => prev.filter(f => f.id !== selectedFarmer.id));
+                        setSelectedFarmer(null); setModal(null); setForm({});
+                      }
+                    }} style={{ width: "100%", background: C.redLight, color: C.red, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "10px", cursor: "pointer", fontSize: 15, fontFamily: "inherit", fontWeight: "700" }}>
+                      🗑️ この顧客を削除する
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -733,6 +821,52 @@ export default function App() {
                 </div>
                 <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
                   <Btn color={C.teal} full onClick={() => saveHullingResult(modal === "editHulling")}>{modal === "completeHulling" ? "完了・日報に記録" : "訂正を保存"}</Btn>
+                  <Btn color={C.textSub} full onClick={() => setModal(null)}>キャンセル</Btn>
+                </div>
+              </div>
+            )}
+
+            {/* 精算管理 金額入力モーダル */}
+            {modal === "editFee" && selectedLot && (
+              <div>
+                <MTitle>💰 金額を入力</MTitle>
+                {(() => {
+                  const farmer = getFarmer(selectedLot.farmerId);
+                  return (
+                    <div style={{ background: C.surfaceAlt, borderRadius: 10, padding: 14, marginBottom: 18, border: `1px solid ${C.border}` }}>
+                      <div style={{ fontSize: 17, fontWeight: "700" }}>{farmer?.name}</div>
+                      <div style={{ fontSize: 15, color: C.textSub, marginTop: 4 }}>{selectedLot.variety} / {selectedLot.tanIn}反 / {selectedLot.bagsIn}袋（{selectedLot.bagType}）</div>
+                    </div>
+                  );
+                })()}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <MF label="籾摺り賃 (円)"><input style={INP} type="number" value={form.feeHulling || ""} onChange={e => setForm({...form, feeHulling: e.target.value})} placeholder="0" /></MF>
+                  <MF label="籾乾燥賃 (円)"><input style={INP} type="number" value={form.feeDrying || ""} onChange={e => setForm({...form, feeDrying: e.target.value})} placeholder="0" /></MF>
+                  <MF label="米袋代 (円)"><input style={INP} type="number" value={form.feeBag || ""} onChange={e => setForm({...form, feeBag: e.target.value})} placeholder="0" /></MF>
+                  <MF label="くず米代 (円)"><input style={INP} type="number" value={form.feeKuzu || ""} onChange={e => setForm({...form, feeKuzu: e.target.value})} placeholder="0" /></MF>
+                </div>
+                <MF label="その他 (内容・金額など自由入力)"><input style={INP} value={form.feeOther || ""} onChange={e => setForm({...form, feeOther: e.target.value})} placeholder="例: 運搬費 ¥1,000" /></MF>
+                {[form.feeHulling, form.feeDrying, form.feeBag, form.feeKuzu].some(v => v) && (
+                  <div style={{ background: C.greenLight, border: `1px solid ${C.greenBorder}`, borderRadius: 8, padding: "12px 16px", textAlign: "right", marginBottom: 8 }}>
+                    <span style={{ fontSize: 15, color: C.textSub }}>合計: </span>
+                    <span style={{ fontSize: 20, fontWeight: "800", color: C.green }}>
+                      ¥{[form.feeHulling, form.feeDrying, form.feeBag, form.feeKuzu].reduce((s, v) => s + (Number(v) || 0), 0).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                  <Btn color={C.green} full onClick={() => {
+                    // 対応するhullingレコードに金額を保存
+                    const hullRec = hulling.find(h => h.lotId === selectedLot.id);
+                    if (hullRec) {
+                      const updatedResult = { ...(hullRec.result || {}), feeHulling: form.feeHulling || "", feeDrying: form.feeDrying || "", feeBag: form.feeBag || "", feeKuzu: form.feeKuzu || "", feeOther: form.feeOther || "" };
+                      setHulling(prev => prev.map(h => h.id === hullRec.id ? { ...h, result: updatedResult } : h));
+                    } else {
+                      // hullingレコードがない場合はlotsに直接保存
+                      setLots(prev => prev.map(l => l.id === selectedLot.id ? { ...l, directFee: { feeHulling: form.feeHulling || "", feeDrying: form.feeDrying || "", feeBag: form.feeBag || "", feeKuzu: form.feeKuzu || "", feeOther: form.feeOther || "" } } : l));
+                    }
+                    setSelectedLot(null); setModal(null); setForm({});
+                  }}>保存する</Btn>
                   <Btn color={C.textSub} full onClick={() => setModal(null)}>キャンセル</Btn>
                 </div>
               </div>
