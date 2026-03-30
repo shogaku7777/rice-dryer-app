@@ -25,6 +25,32 @@ const DRYER_MASTER = [
   { id: 9, name: "乾燥機7",  capacity: "" },
 ];
 
+// ストレージから読み込んだ乾燥機データに名前・容量を常に上書き（古いデータも強制上書き）
+const mergeDryerMaster = (stored) => {
+  return DRYER_MASTER.map(m => {
+    const s = stored?.find(d => d.id === m.id) || {};
+    // 名前と容量は必ずマスタで上書き
+    return { ...s, id: m.id, name: m.name, capacity: m.capacity };
+  });
+};
+
+// 古い乾燥機データをlocalStorageから強制リセット
+const resetDryerMasterIfNeeded = () => {
+  try {
+    const stored = JSON.parse(localStorage.getItem("rice_dryers") || "[]");
+    const needsReset = DRYER_MASTER.some(m => {
+      const s = stored.find(d => d.id === m.id);
+      return !s || s.name !== m.name || s.capacity !== m.capacity;
+    });
+    if (needsReset || stored.length !== DRYER_MASTER.length) {
+      const merged = mergeDryerMaster(stored);
+      localStorage.setItem("rice_dryers", JSON.stringify(merged));
+      return merged;
+    }
+    return stored;
+  } catch { return defaultDryers; }
+};
+
 // ===== カラーパレット：見やすさ最優先 =====
 const C = {
   bg: "#f0f4f8",
@@ -115,9 +141,10 @@ const calcRemaining = (endIso) => {
 export default function App() {
   const [tab, setTab] = useState("dashboard");
   const [reportSort, setReportSort] = useState({ key: "date", dir: "asc" });
+  const [reportFilter, setReportFilter] = useState({ name: "", dateFrom: "", dateTo: "" });
   const [farmers, setFarmers] = useState(() => loadData(STORAGE_KEYS.farmers, []));
   const [lots, setLots] = useState(() => loadData(STORAGE_KEYS.lots, []));
-  const [dryers, setDryers] = useState(() => loadData(STORAGE_KEYS.dryers, defaultDryers));
+  const [dryers, setDryers] = useState(() => resetDryerMasterIfNeeded());
   const [hulling, setHulling] = useState(() => loadData(STORAGE_KEYS.hulling, []));
   const [modal, setModal] = useState(null);
   const [selectedLot, setSelectedLot] = useState(null);
@@ -472,11 +499,10 @@ export default function App() {
         {/* ===== 実績日報 ===== */}
         {tab === "report" && (
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <SectionTitle noMargin>籾摺り実績日報</SectionTitle>
               {completedHulling.length > 0 && (
                 <button onClick={() => {
-                  // SheetJSを動的に読み込んでExcel出力
                   const script = document.createElement("script");
                   script.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
                   script.onload = () => {
@@ -487,152 +513,172 @@ export default function App() {
                       const farmer = lot ? getFarmer(lot.farmerId) : null;
                       const r = h.result || {};
                       const total = (Number(r.feeHulling)||0) + (Number(r.feeDrying)||0) + (Number(r.feeBag)||0) - (Number(r.feeKuzu)||0);
-                      return [
-                        h.date || "",
-                        farmer?.name || "",
-                        lot?.variety || "",
-                        r.tanBetsu || lot?.tanIn || "",
-                        r.jaSupply || "",
-                        r.agriSupply || "",
-                        r.otherSupply || "",
-                        r.iimaiCount ? `${r.iimaiType === "一空" ? "一空" : "新"}${r.iimaiCount}` : "",
-                        r.momiKanso || "",
-                        r.kuzuMai || "",
-                        r.zanMai || "",
-                        r.moisture || lot?.moistureOut || "",
-                        r.resultNote || "",
-                        r.feeHulling ? Number(r.feeHulling) : "",
-                        r.feeDrying ? Number(r.feeDrying) : "",
-                        r.feeBag ? Number(r.feeBag) : "",
-                        r.feeKuzu ? Number(r.feeKuzu) : "",
-                        r.feeOther || "",
-                        total > 0 ? total : "",
-                      ];
+                      return [h.date||"", farmer?.name||"", lot?.variety||"", r.tanBetsu||lot?.tanIn||"", r.jaSupply||"", r.agriSupply||"", r.otherSupply||"", r.iimaiCount?`${r.iimaiType==="一空"?"一空":"新"}${r.iimaiCount}`:"", r.momiKanso||"", r.kuzuMai||"", r.zanMai||"", r.moisture||lot?.moistureOut||"", r.resultNote||"", r.feeHulling?Number(r.feeHulling):"", r.feeDrying?Number(r.feeDrying):"", r.feeBag?Number(r.feeBag):"", r.feeKuzu?Number(r.feeKuzu):"", r.feeOther||"", total>0?total:""];
                     });
-                    const wsData = [headers, ...rows];
-                    const ws = XLSX.utils.aoa_to_sheet(wsData);
-                    // 列幅設定
-                    ws["!cols"] = [
-                      {wch:12},{wch:14},{wch:14},{wch:8},{wch:9},{wch:11},{wch:9},{wch:10},
-                      {wch:12},{wch:9},{wch:9},{wch:8},{wch:16},{wch:11},{wch:11},{wch:9},{wch:13},{wch:12},{wch:11}
-                    ];
+                    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+                    ws["!cols"] = [{wch:12},{wch:14},{wch:14},{wch:8},{wch:9},{wch:11},{wch:9},{wch:10},{wch:12},{wch:9},{wch:9},{wch:8},{wch:16},{wch:11},{wch:11},{wch:9},{wch:13},{wch:12},{wch:11}];
                     const wb = XLSX.utils.book_new();
                     XLSX.utils.book_append_sheet(wb, ws, "籾摺り実績日報");
-                    const year = new Date().getFullYear();
-                    XLSX.writeFile(wb, `籾摺り実績日報_${year}.xlsx`);
+                    XLSX.writeFile(wb, `籾摺り実績日報_${new Date().getFullYear()}.xlsx`);
                   };
-                  script.onerror = () => alert("ダウンロードに失敗しました。インターネット接続を確認してください。");
+                  script.onerror = () => alert("ダウンロードに失敗しました。");
                   document.head.appendChild(script);
-                }} style={{ background: C.green, color: "#fff", border: "none", borderRadius: 8, padding: "10px 18px", cursor: "pointer", fontSize: 15, fontFamily: "inherit", fontWeight: "700", display: "flex", alignItems: "center", gap: 6, boxShadow: "0 2px 4px rgba(0,0,0,0.15)" }}>
+                }} style={{ background: C.green, color: "#fff", border: "none", borderRadius: 8, padding: "10px 18px", cursor: "pointer", fontSize: 15, fontFamily: "inherit", fontWeight: "700", display: "flex", alignItems: "center", gap: 6 }}>
                   📥 Excelで出力
                 </button>
               )}
             </div>
-            {completedHulling.length === 0 && <Empty />}
+
+            {/* フィルター */}
             {completedHulling.length > 0 && (
-              <div style={{ background: C.surface, borderRadius: 14, border: `2px solid ${C.border}`, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
-                    <thead>
-                      <tr style={{ background: C.primary }}>
-                        {[
-                          { label: "日付", key: "date" },
-                          { label: "氏名", key: "name" },
-                          { label: "JA供出", key: "jaSupply" },
-                          { label: "アグリ供出", key: "agriSupply" },
-                          { label: "他供出", key: "otherSupply" },
-                        ].map(col => (
-                          <th key={col.key} onClick={() => setReportSort(prev => ({ key: col.key, dir: prev.key === col.key && prev.dir === "asc" ? "desc" : "asc" }))} style={{ padding: "12px 10px", color: "#ffffff", textAlign: "center", whiteSpace: "nowrap", fontWeight: "700", fontSize: 14, cursor: "pointer", userSelect: "none", background: reportSort.key === col.key ? "#1e40af" : C.primary }}>
-                            {col.label} {reportSort.key === col.key ? (reportSort.dir === "asc" ? "▲" : "▼") : "⇅"}
-                          </th>
-                        ))}
-                        {["飯米","籾乾燥","くず米","残米","反別","水分","その他","籾摺り賃","籾乾燥賃","米袋代","くず米代","その他費用","操作"].map((h, i) => (
-                          <th key={i} style={{ padding: "12px 10px", color: "#ffffff", textAlign: "center", whiteSpace: "nowrap", fontWeight: "700", fontSize: 14 }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...completedHulling].sort((a, b) => {
-                        const lotA = getLot(a.lotId); const lotB = getLot(b.lotId);
-                        const farmerA = lotA ? getFarmer(lotA.farmerId) : null;
-                        const farmerB = lotB ? getFarmer(lotB.farmerId) : null;
-                        const rA = a.result || {}; const rB = b.result || {};
-                        let valA, valB;
-                        if (reportSort.key === "date") { valA = a.date || ""; valB = b.date || ""; }
-                        else if (reportSort.key === "name") { valA = farmerA?.name || ""; valB = farmerB?.name || ""; }
-                        else if (reportSort.key === "jaSupply") { valA = Number(rA.jaSupply) || 0; valB = Number(rB.jaSupply) || 0; }
-                        else if (reportSort.key === "agriSupply") { valA = Number(rA.agriSupply) || 0; valB = Number(rB.agriSupply) || 0; }
-                        else if (reportSort.key === "otherSupply") { valA = Number(rA.otherSupply) || 0; valB = Number(rB.otherSupply) || 0; }
-                        else { valA = a.date || ""; valB = b.date || ""; }
-                        if (valA < valB) return reportSort.dir === "asc" ? -1 : 1;
-                        if (valA > valB) return reportSort.dir === "asc" ? 1 : -1;
-                        return 0;
-                      }).map((h, i) => {
-                        const lot = getLot(h.lotId);
-                        const farmer = lot ? getFarmer(lot.farmerId) : null;
-                        const r = h.result || {};
-                        return (
-                          <tr key={h.id} style={{ background: i % 2 === 0 ? C.surface : C.surfaceAlt, borderBottom: `1px solid ${C.border}` }}>
-                            <td style={TD}>{h.date?.slice(5)}</td>
-                            <td style={{ ...TD, fontWeight: "700", color: C.text, fontSize: 15 }}>{farmer?.name || "—"}</td>
-                            <td style={TD}>{r.jaSupply || "—"}</td>
-                            <td style={TD}>{r.agriSupply || "—"}</td>
-                            <td style={TD}>{r.otherSupply || "—"}</td>
-                            <td style={TD}>{r.iimaiCount ? `${r.iimaiType === "一空" ? "一空" : "新"}${r.iimaiCount}` : "—"}</td>
-                            <td style={TD}>{r.momiKanso || "—"}</td>
-                            <td style={TD}>{r.kuzuMai || "—"}</td>
-                            <td style={TD}>{r.zanMai || "—"}</td>
-                            <td style={TD}>{r.tanBetsu || lot?.tanIn || "—"}</td>
-                            <td style={TD}>{r.moisture || lot?.moistureOut || "—"}</td>
-                            <td style={{ ...TD, color: C.textSub }}>{r.resultNote || "—"}</td>
-                            <td style={{ ...TD, color: C.green, fontWeight: "700" }}>{r.feeHulling ? `¥${Number(r.feeHulling).toLocaleString()}` : "—"}</td>
-                            <td style={{ ...TD, color: C.green, fontWeight: "700" }}>{r.feeDrying ? `¥${Number(r.feeDrying).toLocaleString()}` : "—"}</td>
-                            <td style={{ ...TD, color: C.green, fontWeight: "700" }}>{r.feeBag ? `¥${Number(r.feeBag).toLocaleString()}` : "—"}</td>
-                            <td style={{ ...TD, color: C.green, fontWeight: "700" }}>{r.feeKuzu ? `¥${Number(r.feeKuzu).toLocaleString()}` : "—"}</td>
-                            <td style={{ ...TD, color: C.textSub }}>{r.feeOther || "—"}</td>
-                            <td style={TD}>
-                              <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
-                                <button onClick={() => { setSelectedHulling(h); setForm({ ...r, feeHulling: r.feeHulling || "", feeDrying: r.feeDrying || "", feeBag: r.feeBag || "", feeKuzu: r.feeKuzu || "", feeOther: r.feeOther || "" }); setModal("editHulling"); }} style={smallBtn(C.gold)}>✏️ 訂正</button>
-                                <button onClick={() => {
-                                  if (window.confirm(`「${farmer?.name || "この記録"}」を日報から削除しますか？`)) {
-                                    setHulling(prev => prev.filter(hh => hh.id !== h.id));
-                                    setLots(prev => prev.map(l => l.id === h.lotId ? { ...l, status: "乾燥完了", hullingId: null } : l));
-                                  }
-                                }} style={smallBtn(C.red)}>🗑️</button>
-                                <button onClick={() => {
-                                  const name = farmer?.name || "";
-                                  const variety = lot?.variety || "";
-                                  const tan = r.tanBetsu || lot?.tanIn || "";
-                                  const date = h.date || "";
-                                  const moisture = r.moisture || lot?.moistureOut || "";
-                                  const fee = lot?.fee ? `¥${Number(lot.fee).toLocaleString()}` : "未設定";
-                                  const feeHulling = r.feeHulling ? `籾摺り賃: ¥${Number(r.feeHulling).toLocaleString()}` : "";
-                                  const feeDrying = r.feeDrying ? `籾乾燥賃: ¥${Number(r.feeDrying).toLocaleString()}` : "";
-                                  const feeBag = r.feeBag ? `米袋代: ¥${Number(r.feeBag).toLocaleString()}` : "";
-                                  const feeKuzu = r.feeKuzu ? `くず米代: ¥${Number(r.feeKuzu).toLocaleString()}` : "";
-                                  const feeOther = r.feeOther ? `その他: ${r.feeOther}` : "";
-                                  const feeLines = [feeHulling, feeDrying, feeBag, feeKuzu, feeOther].filter(Boolean).join("\n");
-                                  const totalFee = [r.feeHulling, r.feeDrying, r.feeBag, r.feeKuzu].reduce((sum, v) => sum + (Number(v) || 0), 0);
-                                  const totalLine = totalFee > 0 ? `\n合計: ¥${totalFee.toLocaleString()}` : "";
-                                  const supplies = [
-                                    r.jaSupply ? `JA供出: ${r.jaSupply}袋` : "",
-                                    r.agriSupply ? `アグリ供出: ${r.agriSupply}袋` : "",
-                                    r.otherSupply ? `他供出: ${r.otherSupply}袋` : "",
-                                    r.iimaiCount ? `飯米: ${r.iimaiType === "一空" ? "一空" : "新"}${r.iimaiCount}袋` : "",
-                                  ].filter(Boolean).join("\n");
-                                  const msg = `【籾摺り完了のお知らせ】\n${name} 様\n\n籾摺り作業が完了しましたのでお知らせします。\n\n品種: ${variety}\n反別: ${tan}反\n完了日: ${date}\n水分値: ${moisture}%\n\n${supplies}\n\n【精算金額】\n${feeLines}${totalLine}\n\nよろしくお願いいたします。`;
-                                  navigator.clipboard.writeText(msg).then(() => alert("LINEメッセージをコピーしました！")).catch(() => alert("コピーに失敗しました"));
-                                }} style={smallBtn(C.green)}>📋 LINEコピー</button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+              <div style={{ background: C.surface, border: `2px solid ${C.border}`, borderRadius: 12, padding: "14px 16px", marginBottom: 16, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+                <div>
+                  <div style={{ fontSize: 12, color: C.textMuted, fontWeight: "700", marginBottom: 4 }}>氏名で絞り込み</div>
+                  <input value={reportFilter.name} onChange={e => setReportFilter(f => ({...f, name: e.target.value}))} placeholder="例: 山田" style={{ ...INP, width: 160, padding: "8px 12px" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: C.textMuted, fontWeight: "700", marginBottom: 4 }}>日付（開始）</div>
+                  <input type="date" value={reportFilter.dateFrom} onChange={e => setReportFilter(f => ({...f, dateFrom: e.target.value}))} style={{ ...INP, width: 150 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: C.textMuted, fontWeight: "700", marginBottom: 4 }}>日付（終了）</div>
+                  <input type="date" value={reportFilter.dateTo} onChange={e => setReportFilter(f => ({...f, dateTo: e.target.value}))} style={{ ...INP, width: 150 }} />
+                </div>
+                {(reportFilter.name || reportFilter.dateFrom || reportFilter.dateTo) && (
+                  <button onClick={() => setReportFilter({ name: "", dateFrom: "", dateTo: "" })} style={smallBtn(C.red)}>✕ リセット</button>
+                )}
+                <div style={{ fontSize: 13, color: C.textSub, marginLeft: "auto", alignSelf: "center" }}>
+                  {completedHulling.filter(h => {
+                    const lot = getLot(h.lotId); const farmer = lot ? getFarmer(lot.farmerId) : null;
+                    if (reportFilter.name && !farmer?.name?.includes(reportFilter.name)) return false;
+                    if (reportFilter.dateFrom && h.date < reportFilter.dateFrom) return false;
+                    if (reportFilter.dateTo && h.date > reportFilter.dateTo) return false;
+                    return true;
+                  }).length} 件表示中
                 </div>
               </div>
             )}
+
+            {completedHulling.length === 0 && <Empty />}
+            {completedHulling.length > 0 && (() => {
+              const filtered = [...completedHulling].filter(h => {
+                const lot = getLot(h.lotId); const farmer = lot ? getFarmer(lot.farmerId) : null;
+                if (reportFilter.name && !farmer?.name?.includes(reportFilter.name)) return false;
+                if (reportFilter.dateFrom && h.date < reportFilter.dateFrom) return false;
+                if (reportFilter.dateTo && h.date > reportFilter.dateTo) return false;
+                return true;
+              }).sort((a, b) => {
+                const lotA = getLot(a.lotId); const lotB = getLot(b.lotId);
+                const farmerA = lotA ? getFarmer(lotA.farmerId) : null;
+                const farmerB = lotB ? getFarmer(lotB.farmerId) : null;
+                const rA = a.result || {}; const rB = b.result || {};
+                let valA, valB;
+                if (reportSort.key === "date") { valA = a.date || ""; valB = b.date || ""; }
+                else if (reportSort.key === "name") { valA = farmerA?.name || ""; valB = farmerB?.name || ""; }
+                else if (reportSort.key === "jaSupply") { valA = Number(rA.jaSupply) || 0; valB = Number(rB.jaSupply) || 0; }
+                else if (reportSort.key === "agriSupply") { valA = Number(rA.agriSupply) || 0; valB = Number(rB.agriSupply) || 0; }
+                else if (reportSort.key === "otherSupply") { valA = Number(rA.otherSupply) || 0; valB = Number(rB.otherSupply) || 0; }
+                else { valA = a.date || ""; valB = b.date || ""; }
+                if (valA < valB) return reportSort.dir === "asc" ? -1 : 1;
+                if (valA > valB) return reportSort.dir === "asc" ? 1 : -1;
+                return 0;
+              });
+
+              if (filtered.length === 0) return <div style={{ textAlign: "center", color: C.textMuted, padding: "32px", fontSize: 15 }}>該当する記録がありません</div>;
+
+              return (
+                // カード形式で1件ずつ表示（見やすさ重視）
+                <div>
+                  {filtered.map((h, i) => {
+                    const lot = getLot(h.lotId);
+                    const farmer = lot ? getFarmer(lot.farmerId) : null;
+                    const r = h.result || {};
+                    const total = (Number(r.feeHulling)||0) + (Number(r.feeDrying)||0) + (Number(r.feeBag)||0) - (Number(r.feeKuzu)||0);
+                    return (
+                      <div key={h.id} style={{ background: C.surface, border: `2px solid ${C.border}`, borderRadius: 12, padding: 18, marginBottom: 10, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+                        {/* ヘッダー */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <span style={{ fontSize: 18, fontWeight: "800", color: C.text }}>{farmer?.name || "—"}</span>
+                            <span style={{ fontSize: 13, color: C.textSub, background: C.surfaceAlt, padding: "3px 10px", borderRadius: 8, border: `1px solid ${C.border}` }}>{lot?.variety || "—"}</span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 14, color: C.gold, fontWeight: "700", background: C.goldLight, padding: "4px 12px", borderRadius: 8, border: `1px solid ${C.goldBorder}` }}>📅 {h.date}</span>
+                            {total > 0 && <span style={{ fontSize: 14, color: C.green, fontWeight: "800", background: C.greenLight, padding: "4px 12px", borderRadius: 8, border: `1px solid ${C.greenBorder}` }}>¥{total.toLocaleString()}</span>}
+                          </div>
+                        </div>
+
+                        {/* 基本・供出データ */}
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 6, marginBottom: 10 }}>
+                          {[
+                            ["反別", r.tanBetsu || lot?.tanIn || "—"],
+                            ["水分", r.moisture || lot?.moistureOut ? (r.moisture || lot?.moistureOut) + "%" : "—"],
+                            ["JA供出", r.jaSupply ? r.jaSupply + "袋" : "—"],
+                            ["アグリ", r.agriSupply ? r.agriSupply + "袋" : "—"],
+                            ["他供出", r.otherSupply ? r.otherSupply + "袋" : "—"],
+                            ["飯米", r.iimaiCount ? `${r.iimaiType === "一空" ? "一空" : "新"}${r.iimaiCount}袋` : "—"],
+                            ["籾乾燥", r.momiKanso || "—"],
+                            ["くず米", r.kuzuMai || "—"],
+                            ["残米", r.zanMai || "—"],
+                          ].map(([l, v]) => (
+                            <div key={l} style={{ background: C.surfaceAlt, borderRadius: 7, padding: "6px 8px", border: `1px solid ${C.border}` }}>
+                              <div style={{ fontSize: 11, color: C.textMuted }}>{l}</div>
+                              <div style={{ fontSize: 14, color: C.text, fontWeight: "700" }}>{v}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* 金額内訳 */}
+                        {(r.feeHulling || r.feeDrying || r.feeBag || r.feeKuzu || r.feeOther) && (
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 6, marginBottom: 10, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
+                            {[
+                              ["籾摺り賃", r.feeHulling ? `¥${Number(r.feeHulling).toLocaleString()}` : null, false],
+                              ["籾乾燥賃", r.feeDrying ? `¥${Number(r.feeDrying).toLocaleString()}` : null, false],
+                              ["米袋代", r.feeBag ? `¥${Number(r.feeBag).toLocaleString()}` : null, false],
+                              ["くず米代(返金)", r.feeKuzu ? `－¥${Number(r.feeKuzu).toLocaleString()}` : null, true],
+                              ["その他", r.feeOther || null, false],
+                            ].filter(([, v]) => v).map(([l, v, isRefund]) => (
+                              <div key={l} style={{ background: isRefund ? C.redLight : C.greenLight, borderRadius: 7, padding: "6px 8px", border: `1px solid ${isRefund ? C.redBorder : C.greenBorder}` }}>
+                                <div style={{ fontSize: 11, color: C.textMuted }}>{l}</div>
+                                <div style={{ fontSize: 14, color: isRefund ? C.red : C.green, fontWeight: "700" }}>{v}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {r.resultNote && <div style={{ fontSize: 13, color: C.textSub, marginBottom: 10 }}>備考: {r.resultNote}</div>}
+
+                        {/* ボタン */}
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => { setSelectedHulling(h); setForm({ ...r, feeHulling: r.feeHulling||"", feeDrying: r.feeDrying||"", feeBag: r.feeBag||"", feeKuzu: r.feeKuzu||"", feeOther: r.feeOther||"" }); setModal("editHulling"); }} style={smallBtn(C.gold)}>✏️ 訂正</button>
+                          <button onClick={() => {
+                            const name = farmer?.name || ""; const variety = lot?.variety || "";
+                            const tan = r.tanBetsu || lot?.tanIn || ""; const date = h.date || "";
+                            const moisture = r.moisture || lot?.moistureOut || "";
+                            const feeHulling = r.feeHulling ? `籾摺り賃: ¥${Number(r.feeHulling).toLocaleString()}` : "";
+                            const feeDrying = r.feeDrying ? `籾乾燥賃: ¥${Number(r.feeDrying).toLocaleString()}` : "";
+                            const feeBag = r.feeBag ? `米袋代: ¥${Number(r.feeBag).toLocaleString()}` : "";
+                            const feeKuzu = r.feeKuzu ? `くず米代: ¥${Number(r.feeKuzu).toLocaleString()}` : "";
+                            const feeOther = r.feeOther ? `その他: ${r.feeOther}` : "";
+                            const feeLines = [feeHulling, feeDrying, feeBag, feeKuzu, feeOther].filter(Boolean).join("\n");
+                            const totalLine = total > 0 ? `\n合計: ¥${total.toLocaleString()}` : "";
+                            const supplies = [r.jaSupply?`JA供出: ${r.jaSupply}袋`:"", r.agriSupply?`アグリ供出: ${r.agriSupply}袋`:"", r.otherSupply?`他供出: ${r.otherSupply}袋`:"", r.iimaiCount?`飯米: ${r.iimaiType==="一空"?"一空":"新"}${r.iimaiCount}袋`:""].filter(Boolean).join("\n");
+                            const msg = `【籾摺り完了のお知らせ】\n${name} 様\n\n籾摺り作業が完了しましたのでお知らせします。\n\n品種: ${variety}\n反別: ${tan}反\n完了日: ${date}\n水分値: ${moisture}%\n\n${supplies}\n\n【精算金額】\n${feeLines}${totalLine}\n\nよろしくお願いいたします。`;
+                            navigator.clipboard.writeText(msg).then(() => alert("LINEメッセージをコピーしました！")).catch(() => alert("コピーに失敗しました"));
+                          }} style={smallBtn(C.green)}>📋 LINEコピー</button>
+                          <button onClick={() => {
+                            if (window.confirm(`「${farmer?.name || "この記録"}」を日報から削除しますか？`)) {
+                              setHulling(prev => prev.filter(hh => hh.id !== h.id));
+                              setLots(prev => prev.map(l => l.id === h.lotId ? { ...l, status: "乾燥完了", hullingId: null } : l));
+                            }
+                          }} style={smallBtn(C.red)}>🗑️ 削除</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
 
