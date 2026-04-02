@@ -281,10 +281,11 @@ export default function App() {
         {/* ===== ダッシュボード ===== */}
         {tab === "dashboard" && (
           <div>
+            {/* サマリー */}
             <SectionTitle>本日の状況</SectionTitle>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 28 }}>
               {[
-                { label: "稼働中乾燥機", value: dryingLots.length, unit: "/ 10台", color: C.orange, bg: C.orangeLight, border: C.orangeBorder },
+                { label: "稼働中乾燥機", value: dryingLots.length, unit: "/ 9台", color: C.orange, bg: C.orangeLight, border: C.orangeBorder },
                 { label: "空き乾燥機",   value: dryers.filter(d=>d.status==="空き").length, unit: "台", color: C.green, bg: C.greenLight, border: C.greenBorder },
                 { label: "予約中",       value: dryers.filter(d=>d.status==="予約中").length, unit: "台", color: C.sky, bg: C.skyLight, border: C.skyBorder },
                 { label: "籾摺り予定",   value: activeHulling.length, unit: "件", color: C.purple, bg: C.purpleLight, border: C.purpleBorder },
@@ -299,71 +300,129 @@ export default function App() {
               ))}
             </div>
 
-            <SectionTitle>乾燥機一覧</SectionTitle>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 28 }}>
-              {dryers.map(d => {
-                const lot = d.lotId ? getLot(d.lotId) : d.status === "予約中" ? lots.find(l => l.dryerId === d.id) : null;
-                const farmer = lot ? getFarmer(lot.farmerId) : null;
-                const ss = STATUS[d.status] || { color: C.textSub, bg: C.surfaceAlt, border: C.border };
-                return (
-                  <div key={d.id} style={{ background: ss.bg, border: `2px solid ${ss.border}`, borderRadius: 10, padding: "12px 8px", textAlign: "center" }}>
-                    <div style={{ fontSize: 13, color: C.textSub, fontWeight: "700", marginBottom: 4 }}>{dryerLabel(d.id, dryers)}</div>
-                    {d.capacity && <div style={{ fontSize: 12, color: C.green, fontWeight: "600", marginBottom: 4 }}>{d.capacity}石</div>}
-                    <div style={{ fontSize: 13, color: ss.color, fontWeight: "800", marginBottom: 6, background: C.surface, padding: "2px 6px", borderRadius: 6, display: "inline-block", border: `1px solid ${ss.border}` }}>{d.status}</div>
-                    {farmer && <div style={{ fontSize: 14, color: C.text, fontWeight: "700", marginTop: 4 }}>{farmer.name}</div>}
-                    {lot && <div style={{ fontSize: 12, color: C.textSub, marginTop: 2 }}>{lot.variety}</div>}
-                    {d.status === "乾燥中" && lot?.dryEndScheduled && (
-                      <div style={{ fontSize: 11, color: new Date(lot.dryEndScheduled) < new Date() ? C.red : C.orange, fontWeight: "700", marginTop: 4 }}>
-                        {calcRemaining(lot.dryEndScheduled)}
+            {/* ===== 乾燥作業セクション ===== */}
+            <div style={{ background: C.surface, border: `2px solid ${C.orangeBorder}`, borderRadius: 14, padding: 20, marginBottom: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <h2 style={{ fontSize: 17, fontWeight: "800", color: C.orange, paddingLeft: 10, borderLeft: `4px solid ${C.orange}`, margin: 0 }}>🌾 乾燥作業</h2>
+                <Btn color={C.primary} onClick={() => { setForm({}); setModal("addLot"); }}>＋ 新規受付</Btn>
+              </div>
+
+              {/* 乾燥機グリッド */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+                {dryers.map(d => {
+                  const lot = d.lotId ? getLot(d.lotId) : d.status === "予約中" ? lots.find(l => l.dryerId === d.id) : null;
+                  const farmer = lot ? getFarmer(lot.farmerId) : null;
+                  const ss = STATUS[d.status] || { color: C.textSub, bg: C.surfaceAlt, border: C.border };
+                  const isOverdue = lot?.dryEndScheduled && new Date(lot.dryEndScheduled) < new Date();
+                  return (
+                    <div key={d.id} style={{ background: ss.bg, border: `2px solid ${isOverdue ? C.red : ss.border}`, borderRadius: 10, padding: "12px 10px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <span style={{ fontSize: 14, fontWeight: "800", color: C.text }}>{dryerLabel(d.id, dryers)}</span>
+                        <span style={{ fontSize: 12, background: C.surface, color: ss.color, padding: "2px 8px", borderRadius: 8, border: `1px solid ${ss.border}`, fontWeight: "700" }}>{d.status}</span>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                      {d.capacity && <div style={{ fontSize: 12, color: C.green, fontWeight: "600", marginBottom: 4 }}>{d.capacity}石</div>}
+                      {farmer && <div style={{ fontSize: 14, color: C.text, fontWeight: "700" }}>{farmer.name}</div>}
+                      {lot && <div style={{ fontSize: 12, color: C.textSub }}>{lot.variety} / {lot.tanIn}反</div>}
+                      {d.status === "乾燥中" && lot?.dryEndScheduled && (
+                        <div style={{ fontSize: 12, color: isOverdue ? C.red : C.orange, fontWeight: "700", marginTop: 4 }}>
+                          {calcRemaining(lot.dryEndScheduled)}
+                        </div>
+                      )}
+                      {/* 乾燥中 → 完了ボタン */}
+                      {d.status === "乾燥中" && lot && (
+                        <button onClick={() => { setSelectedLot(lot); setModal("completeDrying"); }} style={{ ...smallBtn(C.green), marginTop: 8, width: "100%", padding: "5px 0" }}>✅ 乾燥完了</button>
+                      )}
+                      {/* 予約中 → 開始ボタン */}
+                      {d.status === "予約中" && lot && (
+                        <button onClick={() => { setSelectedLot(lot); setForm({ dryEndScheduled: "" }); setModal("startDrying"); }} style={{ ...smallBtn(C.orange), marginTop: 8, width: "100%", padding: "5px 0" }}>🔥 乾燥開始</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 乾燥待ち・未割当 */}
+              {waitingLots.length > 0 && (
+                <div style={{ background: C.orangeLight, border: `1px solid ${C.orangeBorder}`, borderRadius: 10, padding: 14, marginBottom: 10 }}>
+                  <div style={{ fontSize: 14, fontWeight: "800", color: C.orange, marginBottom: 10 }}>⚠️ 乾燥機未割り当て</div>
+                  {waitingLots.map(lot => {
+                    const farmer = getFarmer(lot.farmerId);
+                    return (
+                      <AlertRow key={lot.id}>
+                        <div><span style={{ fontSize: 15, fontWeight: "700" }}>{farmer?.name}</span><span style={{ fontSize: 13, color: C.textSub, marginLeft: 8 }}>{lot.variety} / {lot.tanIn}反</span></div>
+                        <Btn color={C.orange} onClick={() => { setSelectedLot(lot); setModal("assignDryer"); }}>乾燥機を割り当て</Btn>
+                      </AlertRow>
+                    );
+                  })}
+                </div>
+              )}
+              {reservedLots.length > 0 && (
+                <div style={{ background: C.skyLight, border: `1px solid ${C.skyBorder}`, borderRadius: 10, padding: 14 }}>
+                  <div style={{ fontSize: 14, fontWeight: "800", color: C.sky, marginBottom: 10 }}>🔵 予約済み・開始待ち</div>
+                  {reservedLots.map(lot => {
+                    const farmer = getFarmer(lot.farmerId);
+                    return (
+                      <AlertRow key={lot.id}>
+                        <div><span style={{ fontSize: 15, fontWeight: "700" }}>{farmer?.name}</span><span style={{ fontSize: 13, color: C.textSub, marginLeft: 8 }}>{lot.variety} → {dryerLabel(getDryer(lot.dryerId)?.id, dryers)}</span></div>
+                        <Btn color={C.orange} onClick={() => { setSelectedLot(lot); setForm({ dryEndScheduled: "" }); setModal("startDrying"); }}>乾燥開始</Btn>
+                      </AlertRow>
+                    );
+                  })}
+                </div>
+              )}
+              {waitingLots.length === 0 && reservedLots.length === 0 && dryingLots.length === 0 && (
+                <div style={{ textAlign: "center", color: C.textMuted, padding: "12px 0", fontSize: 14 }}>乾燥待ちのロットはありません</div>
+              )}
             </div>
 
-            {reservedLots.length > 0 && (
-              <AlertBox color={C.sky} bg={C.skyLight} border={C.skyBorder} title="🔵 乾燥機予約済み・開始待ち">
-                {reservedLots.map(lot => {
-                  const farmer = getFarmer(lot.farmerId);
-                  return (
-                    <AlertRow key={lot.id}>
-                      <span style={{ fontSize: 16, fontWeight: "700" }}>{farmer?.name}</span>
-                      <span style={{ fontSize: 14, color: C.textSub, marginLeft: 8 }}>{lot.variety} / {lot.tanIn}反 → {dryerLabel(getDryer(lot.dryerId)?.id)}</span>
-                      <Btn color={C.orange} onClick={() => { setSelectedLot(lot); setForm({ dryEndScheduled: "" }); setModal("startDrying"); }}>乾燥開始</Btn>
-                    </AlertRow>
-                  );
-                })}
-              </AlertBox>
-            )}
-            {waitingLots.length > 0 && (
-              <AlertBox color={C.orange} bg={C.orangeLight} border={C.orangeBorder} title="⚠️ 乾燥機未割り当て">
-                {waitingLots.map(lot => {
-                  const farmer = getFarmer(lot.farmerId);
-                  return (
-                    <AlertRow key={lot.id}>
-                      <span style={{ fontSize: 16, fontWeight: "700" }}>{farmer?.name}</span>
-                      <span style={{ fontSize: 14, color: C.textSub, marginLeft: 8 }}>{lot.variety} / {lot.tanIn}反</span>
-                      <Btn color={C.orange} onClick={() => { setSelectedLot(lot); setModal("assignDryer"); }}>割り当て</Btn>
-                    </AlertRow>
-                  );
-                })}
-              </AlertBox>
-            )}
-            {hullingWaitLots.length > 0 && (
-              <AlertBox color={C.purple} bg={C.purpleLight} border={C.purpleBorder} title="💡 籾摺りスケジュール未設定">
-                {hullingWaitLots.map(lot => {
-                  const farmer = getFarmer(lot.farmerId);
-                  return (
-                    <AlertRow key={lot.id}>
-                      <span style={{ fontSize: 16, fontWeight: "700" }}>{farmer?.name}</span>
-                      <span style={{ fontSize: 14, color: C.textSub, marginLeft: 8 }}>{lot.variety}</span>
-                      <Btn color={C.purple} onClick={() => { setSelectedLot(lot); setModal("hullingSchedule"); }}>日程を設定</Btn>
-                    </AlertRow>
-                  );
-                })}
-              </AlertBox>
-            )}
+            {/* ===== 籾摺り作業セクション ===== */}
+            <div style={{ background: C.surface, border: `2px solid ${C.purpleBorder}`, borderRadius: 14, padding: 20 }}>
+              <h2 style={{ fontSize: 17, fontWeight: "800", color: C.purple, paddingLeft: 10, borderLeft: `4px solid ${C.purple}`, margin: "0 0 16px 0" }}>🌀 籾摺り作業</h2>
+
+              {/* 籾摺り日程未設定 */}
+              {hullingWaitLots.length > 0 && (
+                <div style={{ background: C.purpleLight, border: `1px solid ${C.purpleBorder}`, borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                  <div style={{ fontSize: 14, fontWeight: "800", color: C.purple, marginBottom: 10 }}>💡 籾摺り日程未設定（乾燥完了）</div>
+                  {hullingWaitLots.map(lot => {
+                    const farmer = getFarmer(lot.farmerId);
+                    return (
+                      <AlertRow key={lot.id}>
+                        <div><span style={{ fontSize: 15, fontWeight: "700" }}>{farmer?.name}</span><span style={{ fontSize: 13, color: C.textSub, marginLeft: 8 }}>{lot.variety}</span></div>
+                        <Btn color={C.purple} onClick={() => { setSelectedLot(lot); setModal("hullingSchedule"); }}>日程を設定</Btn>
+                      </AlertRow>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 籾摺りスケジュール一覧 */}
+              {activeHulling.length > 0 ? (
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: "700", color: C.textSub, marginBottom: 10 }}>📅 籾摺り予定</div>
+                  {[...activeHulling].sort((a, b) => a.date > b.date ? 1 : -1).map(h => {
+                    const lot = getLot(h.lotId);
+                    const farmer = lot ? getFarmer(lot.farmerId) : null;
+                    const ss = STATUS[h.status] || { color: C.textSub, bg: C.surfaceAlt, border: C.border };
+                    return (
+                      <div key={h.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: ss.bg, border: `1px solid ${ss.border}`, borderRadius: 10, marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+                        <div>
+                          <span style={{ fontSize: 15, fontWeight: "800" }}>{farmer?.name}</span>
+                          <span style={{ fontSize: 13, color: C.textSub, marginLeft: 8 }}>{lot?.variety} / {lot?.tanIn}反</span>
+                          <span style={{ fontSize: 12, color: ss.color, marginLeft: 8, fontWeight: "700" }}>{h.status}</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 13, color: C.gold, fontWeight: "700" }}>📅 {h.date}</span>
+                          {h.status === "予約済" && <button onClick={() => { setHulling(prev => prev.map(hh => hh.id === h.id ? { ...hh, status: "籾摺り中" } : hh)); setLots(prev => prev.map(l => l.id === h.lotId ? { ...l, status: "籾摺り中" } : l)); }} style={smallBtn(C.red)}>籾摺り開始</button>}
+                          {h.status === "籾摺り中" && <button onClick={() => { setSelectedHulling(h); setForm({}); setModal("completeHulling"); }} style={smallBtn(C.teal)}>実績入力して完了</button>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : hullingWaitLots.length === 0 ? (
+                <div style={{ textAlign: "center", color: C.textMuted, padding: "12px 0", fontSize: 14 }}>籾摺り予定はありません</div>
+              ) : null}
+            </div>
           </div>
         )}
 
